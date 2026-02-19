@@ -2,7 +2,7 @@
 ## Title: NoGuildScanner
 ## Notes: Scan current zone, track history, and invite.
 ## Author: You
-## Version: 7.0
+## Version: 1.0
 ## SavedVariables: NoGuildHistoryDB, NoGuildSettingsDB, NoGuildWhispersDB
 
 NoGuildScanner_Constants.lua

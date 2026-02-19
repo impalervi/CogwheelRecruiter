@@ -10,16 +10,36 @@ local settingsDB -- Shortcut to NoGuildSettingsDB
 local whispersDB -- Shortcut to NoGuildWhispersDB
 local UpdateMinimapPosition -- Forward declaration
 local UpdateWhispersList -- Forward declaration
+local UpdateTabButtons -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
+
+local function GetAddonMeta(name, key)
+    if C_AddOns and C_AddOns.GetAddOnMetadata then
+        return C_AddOns.GetAddOnMetadata(name, key)
+    end
+    if GetAddOnMetadata then
+        return GetAddOnMetadata(name, key)
+    end
+    return nil
+end
+
+local ADDON_TITLE = GetAddonMeta(addonName, "Title") or addonName
+local ADDON_VERSION = GetAddonMeta(addonName, "Version") or "dev"
+local ADDON_AUTHOR = "ImpalerV (Marviy @ Nightslayer)"
+local COLOR_HEADER_GOLD = "|cffFFD100"
+local COLOR_FOOTER_GOLD = "|cffC89B3C"
+local COLOR_DARK_RED = "|cff7A1F1F"
+local COLOR_DARK_MAGE = "|cff2A86A0"
+local COLOR_RESET = "|r"
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID"
 }
 
--- Create Main Window
-local mainFrame = CreateFrame("Frame", "NoGuildFrame", UIParent, "BasicFrameTemplateWithInset")
+-- Create Main Window (custom, Attune-like framed container)
+local mainFrame = CreateFrame("Frame", "NoGuildFrame", UIParent, "BackdropTemplate")
 mainFrame:SetSize(520, 550)
 mainFrame:SetPoint("CENTER")
 mainFrame:SetMovable(true)
@@ -27,12 +47,77 @@ mainFrame:EnableMouse(true)
 mainFrame:RegisterForDrag("LeftButton")
 mainFrame:SetScript("OnDragStart", mainFrame.StartMoving)
 mainFrame:SetScript("OnDragStop", mainFrame.StopMovingOrSizing)
+mainFrame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 8, right = 8, top = 8, bottom = 8 }
+})
+mainFrame:SetBackdropColor(0, 0, 0, 1)
+mainFrame:SetBackdropBorderColor(0.85, 0.85, 0.85, 1)
 mainFrame:Hide()
 
-mainFrame.title = mainFrame:CreateFontString(nil, "OVERLAY")
-mainFrame.title:SetFontObject("GameFontHighlight")
-mainFrame.title:SetPoint("CENTER", mainFrame.TitleBg, "CENTER", 0, 0)
-mainFrame.title:SetText("NoGuild Scanner")
+local frameClose = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
+frameClose:SetPoint("TOPRIGHT", -2, -2)
+
+local titleChip = CreateFrame("Frame", nil, mainFrame)
+titleChip:SetSize(250, 46)
+titleChip:ClearAllPoints()
+titleChip:SetPoint("TOP", mainFrame, "TOP", 0, 14)
+titleChip.center = titleChip:CreateTexture(nil, "ARTWORK")
+titleChip.center:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+titleChip.center:SetTexCoord(0.31, 0.67, 0, 0.63)
+titleChip.center:SetPoint("TOP", 0, 0)
+titleChip.center:SetSize(190, 42)
+titleChip.left = titleChip:CreateTexture(nil, "ARTWORK")
+titleChip.left:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+titleChip.left:SetTexCoord(0.21, 0.31, 0, 0.63)
+titleChip.left:SetPoint("RIGHT", titleChip.center, "LEFT", 0, 0)
+titleChip.left:SetSize(30, 42)
+titleChip.right = titleChip:CreateTexture(nil, "ARTWORK")
+titleChip.right:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+titleChip.right:SetTexCoord(0.67, 0.77, 0, 0.63)
+titleChip.right:SetPoint("LEFT", titleChip.center, "RIGHT", 0, 0)
+titleChip.right:SetSize(30, 42)
+
+mainFrame.title = titleChip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+mainFrame.title:SetPoint("CENTER", titleChip.center, "CENTER", 0, 0)
+mainFrame.title:SetText(COLOR_HEADER_GOLD .. ADDON_TITLE .. COLOR_RESET)
+
+local contentPanel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
+contentPanel:SetPoint("TOPLEFT", 10, -60)
+contentPanel:SetPoint("BOTTOMRIGHT", -10, 58)
+contentPanel:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 10,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 }
+})
+contentPanel:SetBackdropColor(0.04, 0.04, 0.04, 0.88)
+contentPanel:SetBackdropBorderColor(0.45, 0.45, 0.45, 0.9)
+
+local footerFrame = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
+footerFrame:SetPoint("BOTTOMLEFT", 10, 8)
+footerFrame:SetPoint("BOTTOMRIGHT", -10, 8)
+footerFrame:SetHeight(18)
+footerFrame:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false, edgeSize = 10,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 }
+})
+footerFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.75)
+footerFrame:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.9)
+
+local footerText = footerFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+footerText:SetPoint("CENTER")
+local coloredAuthor = ADDON_AUTHOR:gsub("Marviy", COLOR_DARK_MAGE .. "Marviy" .. COLOR_RESET)
+footerText:SetText(string.format(
+    "%s%s%s %sv%s%s | Author: %s",
+    COLOR_FOOTER_GOLD, ADDON_TITLE, COLOR_RESET,
+    COLOR_DARK_RED, ADDON_VERSION, COLOR_RESET,
+    coloredAuthor
+))
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
@@ -117,7 +202,6 @@ local ZONE_CATEGORIES = NS.ZONE_CATEGORIES or {
 }
 
 -- Selection State
-local SelectedCategories = {}
 local SelectedSpecificZone = nil
 
 local function GetShortName(name)
@@ -185,32 +269,26 @@ local currentTab = 1
 local scanRows = {}
 
 local scanView = CreateFrame("Frame", nil, mainFrame)
-scanView:SetPoint("TOPLEFT", 10, -60)
-scanView:SetPoint("BOTTOMRIGHT", -10, 10)
+scanView:SetAllPoints(contentPanel)
 
 local historyView = CreateFrame("Frame", nil, mainFrame)
-historyView:SetPoint("TOPLEFT", 10, -60)
-historyView:SetPoint("BOTTOMRIGHT", -10, 10)
+historyView:SetAllPoints(contentPanel)
 historyView:Hide()
 
 local settingsView = CreateFrame("Frame", nil, mainFrame)
-settingsView:SetPoint("TOPLEFT", 10, -60)
-settingsView:SetPoint("BOTTOMRIGHT", -10, 10)
+settingsView:SetAllPoints(contentPanel)
 settingsView:Hide()
 
 local statsView = CreateFrame("Frame", nil, mainFrame)
-statsView:SetPoint("TOPLEFT", 10, -60)
-statsView:SetPoint("BOTTOMRIGHT", -10, 10)
+statsView:SetAllPoints(contentPanel)
 statsView:Hide()
 
 local guildStatsView = CreateFrame("Frame", nil, mainFrame)
-guildStatsView:SetPoint("TOPLEFT", 10, -60)
-guildStatsView:SetPoint("BOTTOMRIGHT", -10, 10)
+guildStatsView:SetAllPoints(contentPanel)
 guildStatsView:Hide()
 
 local whispersView = CreateFrame("Frame", nil, mainFrame)
-whispersView:SetPoint("TOPLEFT", 10, -60)
-whispersView:SetPoint("BOTTOMRIGHT", -10, 10)
+whispersView:SetAllPoints(contentPanel)
 whispersView:Hide()
 
 local gsTitle = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -498,43 +576,68 @@ local function SetTab(id)
         whispersView:Show()
         if UpdateWhispersList then UpdateWhispersList() end
     end
+
+    if UpdateTabButtons then UpdateTabButtons() end
 end
 
-local tab1 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab1:SetSize(70, 25)
-tab1:SetPoint("TOPLEFT", 12, -30)
-tab1:SetText("Results")
+local tab1 = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+tab1:SetSize(120, 24)
+tab1:SetPoint("TOP", mainFrame, "TOP", -62, -30)
+tab1:SetText("Scanner")
 tab1:SetScript("OnClick", function() SetTab(1) end)
 
-local tab6 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab6:SetSize(70, 25)
+local tab6 = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+tab6:SetSize(120, 24)
 tab6:SetPoint("LEFT", tab1, "RIGHT", 4, 0)
 tab6:SetText("Whispers")
 tab6:SetScript("OnClick", function() SetTab(6) end)
 
-local tab2 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab2:SetSize(70, 25)
-tab2:SetPoint("LEFT", tab6, "RIGHT", 4, 0)
-tab2:SetText("History")
-tab2:SetScript("OnClick", function() SetTab(2) end)
+local function CreateAuxTabButton(anchor, label, tabId)
+    local btn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+    btn:SetSize(80, 20)
+    btn:SetPoint("LEFT", anchor, "RIGHT", 4, 0)
+    btn:SetText(label)
+    btn.tabId = tabId
+    btn:SetScript("OnClick", function() SetTab(tabId) end)
+    return btn
+end
 
-local tab3 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab3:SetSize(70, 25)
-tab3:SetPoint("LEFT", tab2, "RIGHT", 4, 0)
-tab3:SetText("Settings")
-tab3:SetScript("OnClick", function() SetTab(3) end)
+local auxStart = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+auxStart:SetSize(80, 20)
+auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -166, 31)
+auxStart:SetText("History")
+auxStart.tabId = 2
+auxStart:SetScript("OnClick", function() SetTab(2) end)
 
-local tab4 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab4:SetSize(70, 25)
-tab4:SetPoint("LEFT", tab3, "RIGHT", 4, 0)
-tab4:SetText("Statistics")
-tab4:SetScript("OnClick", function() SetTab(4) end)
+local btnStats = CreateAuxTabButton(auxStart, "Stats", 4)
+local btnGuild = CreateAuxTabButton(btnStats, "Guild", 5)
+local btnSettings = CreateAuxTabButton(btnGuild, "Settings", 3)
+local btnHistory = auxStart
 
-local tab5 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab5:SetSize(100, 25)
-tab5:SetPoint("LEFT", tab4, "RIGHT", 4, 0)
-tab5:SetText("Guild Stats")
-tab5:SetScript("OnClick", function() SetTab(5) end)
+UpdateTabButtons = function()
+    local primaryActive = {
+        [1] = tab1,
+        [6] = tab6
+    }
+    for id, btn in pairs(primaryActive) do
+        if currentTab == id then
+            btn:SetAlpha(1.0)
+        else
+            btn:SetAlpha(0.85)
+        end
+    end
+
+    local auxTabs = { btnHistory, btnStats, btnGuild, btnSettings }
+    for _, btn in ipairs(auxTabs) do
+        if currentTab == btn.tabId then
+            btn:SetAlpha(1.0)
+        else
+            btn:SetAlpha(0.85)
+        end
+    end
+end
+
+UpdateTabButtons()
 
 -- =============================================================
 -- 4. RESULTS VIEW (Tab 1 - New UI)
@@ -605,10 +708,13 @@ UIDropDownMenu_Initialize(zoneDropDown, function(self, level, menuList)
 end)
 
 -- D. Scan Button
-local scanBtn = CreateFrame("Button", nil, targetUI, "GameMenuButtonTemplate")
+local scanBtn = CreateFrame("Button", nil, targetUI, "UIPanelButtonTemplate")
 scanBtn:SetSize(110, 25)
 scanBtn:SetPoint("LEFT", zoneDropDown, "RIGHT", -5, 2)
 scanBtn:SetText("Start Scan")
+scanBtn:SetNormalFontObject("GameFontNormal")
+scanBtn:SetHighlightFontObject("GameFontNormal")
+scanBtn:SetDisabledFontObject("GameFontDisable")
 scanBtn:SetScript("OnClick", function()
     if StartScanSequence then StartScanSequence() end
 end)
@@ -794,7 +900,7 @@ searchBox:SetScript("OnEditFocusLost", function(self)
     if self:GetText() == "" then searchPlaceholder:Show() end
 end)
 
-local clearBtn = CreateFrame("Button", nil, historyView, "GameMenuButtonTemplate")
+local clearBtn = CreateFrame("Button", nil, historyView, "UIPanelButtonTemplate")
 clearBtn:SetSize(140, 30)
 clearBtn:SetPoint("BOTTOM", 0, 10)
 clearBtn:SetText("Clear All History")
@@ -1267,14 +1373,14 @@ end)
 settingsView:HookScript("OnShow", InitializeLevelSlidersFromSettings)
 InitializeLevelSlidersFromSettings()
 
-local balLevelBtn = CreateFrame("Button", nil, settingsContent, "GameMenuButtonTemplate")
+local balLevelBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
 balLevelBtn:SetSize(220, 25)
 balLevelBtn:SetPoint("TOPLEFT", 20, -400)
 balLevelBtn:SetText("Balance Guild Level Distribution")
 balLevelBtn:SetScript("OnClick", function()
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
 
-    local counts, total = GetGuildLevelCounts()
+    local counts = GetGuildLevelCounts()
 
     -- Prepare list of all categories (even those with 0 count)
     local catList = {}
@@ -1347,7 +1453,7 @@ for i, cls in ipairs(CLASS_LIST) do
 end
 
 -- Balance Button
-local balBtn = CreateFrame("Button", nil, settingsContent, "GameMenuButtonTemplate")
+local balBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
 balBtn:SetSize(220, 25)
 balBtn:SetPoint("TOPLEFT", 20, chkY - 40) -- Adjusted position relative to end of checkboxes
 balBtn:SetText("Balance Guild Class Distribution")
