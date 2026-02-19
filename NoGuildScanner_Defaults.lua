@@ -10,7 +10,7 @@ end
 
 function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.minLevel then settingsDB.minLevel = 1 end
-    if not settingsDB.maxLevel then settingsDB.maxLevel = 80 end
+    if not settingsDB.maxLevel then settingsDB.maxLevel = 70 end
 
     if not settingsDB.classes then settingsDB.classes = {} end
     for _, cls in ipairs(classList or {}) do
@@ -21,7 +21,7 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
     if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
     if not settingsDB.whisperTemplate then
-        settingsDB.whisperTemplate = "Hi <character>, would you like to join a friendly and supportive community while you continue your adventure leveling up?"
+        settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community while you continue your adventure leveling up?"
     end
 end
 
