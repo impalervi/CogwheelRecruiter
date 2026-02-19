@@ -1,0 +1,8 @@
+## Interface: 110207,120000,120001,11508,20505,50503
+## Title: NoGuildScanner
+## Notes: Scan current zone, track history, and invite.
+## Author: You
+## Version: 7.0
+## SavedVariables: NoGuildHistoryDB, NoGuildSettingsDB
+
+NoGuildScanner.lua
