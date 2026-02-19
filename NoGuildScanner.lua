@@ -597,6 +597,9 @@ local function CreateAuxTabButton(anchor, label, tabId)
     btn:SetSize(80, 20)
     btn:SetPoint("LEFT", anchor, "RIGHT", 4, 0)
     btn:SetText(label)
+    if btn:GetFontString() then
+        btn:GetFontString():SetTextColor(1, 1, 1)
+    end
     btn.tabId = tabId
     btn:SetScript("OnClick", function() SetTab(tabId) end)
     return btn
@@ -606,6 +609,9 @@ local auxStart = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
 auxStart:SetSize(80, 20)
 auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -166, 31)
 auxStart:SetText("History")
+if auxStart:GetFontString() then
+    auxStart:GetFontString():SetTextColor(1, 1, 1)
+end
 auxStart.tabId = 2
 auxStart:SetScript("OnClick", function() SetTab(2) end)
 
@@ -629,6 +635,9 @@ UpdateTabButtons = function()
 
     local auxTabs = { btnHistory, btnStats, btnGuild, btnSettings }
     for _, btn in ipairs(auxTabs) do
+        if btn:GetFontString() then
+            btn:GetFontString():SetTextColor(1, 1, 1)
+        end
         if currentTab == btn.tabId then
             btn:SetAlpha(1.0)
         else
