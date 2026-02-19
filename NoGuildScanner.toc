@@ -5,4 +5,6 @@
 ## Version: 7.0
 ## SavedVariables: NoGuildHistoryDB, NoGuildSettingsDB
 
+NoGuildScanner_Constants.lua
+NoGuildScanner_Defaults.lua
 NoGuildScanner.lua
