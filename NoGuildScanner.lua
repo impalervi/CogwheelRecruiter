@@ -1,12 +1,15 @@
 -- =============================================================
 -- 1. SETUP & VARIABLES
 -- =============================================================
-local addonName = "NoGuildScanner"
+local addonName, NS = ...
+NS = NS or {}
+
+addonName = addonName or "NoGuildScanner"
 local historyDB -- Shortcut to NoGuildHistoryDB
 local settingsDB -- Shortcut to NoGuildSettingsDB
 local UpdateMinimapPosition -- Forward declaration
 
-local CLASS_LIST = {
+local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID"
 }
@@ -31,31 +34,39 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
-        if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
-        historyDB = NoGuildHistoryDB
-
-        if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
-        settingsDB = NoGuildSettingsDB
-
-        if not settingsDB.minLevel then settingsDB.minLevel = 1 end
-        if not settingsDB.maxLevel then settingsDB.maxLevel = 80 end
-
-        if not settingsDB.classes then settingsDB.classes = {} end
-        for _, cls in ipairs(CLASS_LIST) do
-            if settingsDB.classes[cls] == nil then settingsDB.classes[cls] = true end
+        if NS.EnsureDatabases then
+            historyDB, settingsDB = NS.EnsureDatabases()
+        else
+            if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
+            if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
+            historyDB = NoGuildHistoryDB
+            settingsDB = NoGuildSettingsDB
         end
 
-        if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
+        if NS.ApplyDefaultSettings then
+            NS.ApplyDefaultSettings(settingsDB, CLASS_LIST)
+        else
+            if not settingsDB.minLevel then settingsDB.minLevel = 1 end
+            if not settingsDB.maxLevel then settingsDB.maxLevel = 80 end
+            if not settingsDB.classes then settingsDB.classes = {} end
+            for _, cls in ipairs(CLASS_LIST) do
+                if settingsDB.classes[cls] == nil then settingsDB.classes[cls] = true end
+            end
+            if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
+            if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
+            if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
+        end
 
-        if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
-
-        if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
         if UpdateMinimapPosition then UpdateMinimapPosition() end
 
         -- Cleanup old history
-        local cutoff = time() - (settingsDB.historyRetentionDays * 86400)
-        for name, data in pairs(historyDB) do
-            if data.time < cutoff then historyDB[name] = nil end
+        if NS.PruneHistory then
+            NS.PruneHistory(historyDB, settingsDB.historyRetentionDays)
+        else
+            local cutoff = time() - (settingsDB.historyRetentionDays * 86400)
+            for name, data in pairs(historyDB) do
+                if data.time < cutoff then historyDB[name] = nil end
+            end
         end
     end
 end)
@@ -63,7 +74,7 @@ end)
 -- =============================================================
 -- 2. ZONE DATA (Structured for New UI)
 -- =============================================================
-local ZONE_CATEGORIES = {
+local ZONE_CATEGORIES = NS.ZONE_CATEGORIES or {
     {
         name = "Starter Zones (1-15)",
         zones = {"Elwynn Forest", "Dun Morogh", "Teldrassil", "Azuremyst Isle", "Durotar", "Mulgore", "Tirisfal Glades", "Eversong Woods"},
@@ -92,7 +103,7 @@ local ZONE_CATEGORIES = {
     {
         name = "Major Cities",
         zones = {"Orgrimmar", "Stormwind City", "Ironforge", "Undercity", "Darnassus", "Thunder Bluff", "Silvermoon City", "The Exodar", "Shattrath City"},
-        min = 0, max = 0, color = {r=0.5, g=0.5, b=0.5} -- Ignored for stats usually
+        min = 0, max = 0, color = {r=0.5, g=0.5, b=0.5}
     }
 }
 
