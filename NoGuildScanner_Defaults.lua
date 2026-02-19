@@ -4,7 +4,8 @@ NS = NS or {}
 function NS.EnsureDatabases()
     if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
     if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
-    return NoGuildHistoryDB, NoGuildSettingsDB
+    if NoGuildWhispersDB == nil then NoGuildWhispersDB = {} end
+    return NoGuildHistoryDB, NoGuildSettingsDB, NoGuildWhispersDB
 end
 
 function NS.ApplyDefaultSettings(settingsDB, classList)
@@ -19,6 +20,9 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
     if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
     if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
+    if not settingsDB.whisperTemplate then
+        settingsDB.whisperTemplate = "Hi <character>, would you like to join a friendly and supportive community while you continue your adventure leveling up?"
+    end
 end
 
 function NS.PruneHistory(historyDB, retentionDays)

@@ -7,7 +7,10 @@ NS = NS or {}
 addonName = addonName or "NoGuildScanner"
 local historyDB -- Shortcut to NoGuildHistoryDB
 local settingsDB -- Shortcut to NoGuildSettingsDB
+local whispersDB -- Shortcut to NoGuildWhispersDB
 local UpdateMinimapPosition -- Forward declaration
+local UpdateWhispersList -- Forward declaration
+local MAX_WHISPER_CHARS = 255
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -16,7 +19,7 @@ local CLASS_LIST = NS.CLASS_LIST or {
 
 -- Create Main Window
 local mainFrame = CreateFrame("Frame", "NoGuildFrame", UIParent, "BasicFrameTemplateWithInset")
-mainFrame:SetSize(480, 550) -- Increased width for single line text
+mainFrame:SetSize(520, 550)
 mainFrame:SetPoint("CENTER")
 mainFrame:SetMovable(true)
 mainFrame:EnableMouse(true)
@@ -35,12 +38,14 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         if NS.EnsureDatabases then
-            historyDB, settingsDB = NS.EnsureDatabases()
+            historyDB, settingsDB, whispersDB = NS.EnsureDatabases()
         else
             if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
             if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
+            if NoGuildWhispersDB == nil then NoGuildWhispersDB = {} end
             historyDB = NoGuildHistoryDB
             settingsDB = NoGuildSettingsDB
+            whispersDB = NoGuildWhispersDB
         end
 
         if NS.ApplyDefaultSettings then
@@ -55,6 +60,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
             if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
             if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
+            if not settingsDB.whisperTemplate then
+                settingsDB.whisperTemplate = "Hi <character>, would you like to join a friendly and supportive community while you continue your adventure leveling up?"
+            end
         end
 
         if UpdateMinimapPosition then UpdateMinimapPosition() end
@@ -111,6 +119,46 @@ local ZONE_CATEGORIES = NS.ZONE_CATEGORIES or {
 local SelectedCategories = {}
 local SelectedSpecificZone = nil
 
+local function GetShortName(name)
+    if not name then return "" end
+    return (name:match("^[^-]+") or name)
+end
+
+local function GetWhisperKey(name)
+    return GetShortName(name)
+end
+
+local function BuildWhisperMessage(targetName)
+    local tmpl = (settingsDB and settingsDB.whisperTemplate) or "Hi <character>!"
+    local short = GetShortName(targetName)
+    tmpl = tmpl:gsub("<character>", short)
+    tmpl = tmpl:gsub("{character}", short)
+    return tmpl
+end
+
+local function SendWhisperToPlayer(targetName)
+    local msg = BuildWhisperMessage(targetName)
+    if string.len(msg) > MAX_WHISPER_CHARS then
+        print(string.format("|cffff0000[NoGuild]|r Whisper too long (%d/%d). Shorten your template in Settings.", string.len(msg), MAX_WHISPER_CHARS))
+        return false
+    end
+
+    if C_ChatInfo and C_ChatInfo.SendChatMessage then
+        C_ChatInfo.SendChatMessage(msg, "WHISPER", nil, targetName)
+    else
+        SendChatMessage(msg, "WHISPER", nil, targetName)
+    end
+
+    if whispersDB then
+        local key = GetWhisperKey(targetName)
+        whispersDB[key] = whispersDB[key] or {}
+        whispersDB[key].displayName = GetShortName(targetName)
+        whispersDB[key].lastOutbound = msg
+        whispersDB[key].lastOutboundTime = time()
+    end
+    return true
+end
+
 -- =============================================================
 -- 3. TABS SETUP
 -- =============================================================
@@ -140,6 +188,11 @@ local guildStatsView = CreateFrame("Frame", nil, mainFrame)
 guildStatsView:SetPoint("TOPLEFT", 10, -60)
 guildStatsView:SetPoint("BOTTOMRIGHT", -10, 10)
 guildStatsView:Hide()
+
+local whispersView = CreateFrame("Frame", nil, mainFrame)
+whispersView:SetPoint("TOPLEFT", 10, -60)
+whispersView:SetPoint("BOTTOMRIGHT", -10, 10)
+whispersView:Hide()
 
 local gsTitle = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 gsTitle:SetPoint("TOPLEFT", 20, -15)
@@ -406,6 +459,7 @@ local function SetTab(id)
     settingsView:Hide()
     statsView:Hide()
     guildStatsView:Hide()
+    whispersView:Hide()
 
     if id == 1 then
         scanView:Show()
@@ -421,37 +475,46 @@ local function SetTab(id)
         guildStatsView:Show()
         UpdateGuildStats()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
+    elseif id == 6 then
+        whispersView:Show()
+        if UpdateWhispersList then UpdateWhispersList() end
     end
 end
 
 local tab1 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab1:SetSize(80, 25)
-tab1:SetPoint("TOPLEFT", 15, -30)
+tab1:SetSize(70, 25)
+tab1:SetPoint("TOPLEFT", 12, -30)
 tab1:SetText("Results")
 tab1:SetScript("OnClick", function() SetTab(1) end)
 
+local tab6 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
+tab6:SetSize(70, 25)
+tab6:SetPoint("LEFT", tab1, "RIGHT", 4, 0)
+tab6:SetText("Whispers")
+tab6:SetScript("OnClick", function() SetTab(6) end)
+
 local tab2 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab2:SetSize(80, 25)
-tab2:SetPoint("TOPLEFT", 100, -30)
+tab2:SetSize(70, 25)
+tab2:SetPoint("LEFT", tab6, "RIGHT", 4, 0)
 tab2:SetText("History")
 tab2:SetScript("OnClick", function() SetTab(2) end)
 
 local tab3 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab3:SetSize(80, 25)
-tab3:SetPoint("TOPLEFT", 185, -30)
+tab3:SetSize(70, 25)
+tab3:SetPoint("LEFT", tab2, "RIGHT", 4, 0)
 tab3:SetText("Settings")
 tab3:SetScript("OnClick", function() SetTab(3) end)
 
 local tab4 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
-tab4:SetSize(80, 25)
-tab4:SetPoint("TOPLEFT", 270, -30)
+tab4:SetSize(70, 25)
+tab4:SetPoint("LEFT", tab3, "RIGHT", 4, 0)
 tab4:SetText("Statistics")
 tab4:SetScript("OnClick", function() SetTab(4) end)
 
 local tab5 = CreateFrame("Button", nil, mainFrame, "GameMenuButtonTemplate")
 tab5:SetSize(100, 25)
-tab5:SetPoint("TOPLEFT", 355, -30)
-tab5:SetText("Guild Statistics")
+tab5:SetPoint("LEFT", tab4, "RIGHT", 4, 0)
+tab5:SetText("Guild Stats")
 tab5:SetScript("OnClick", function() SetTab(5) end)
 
 -- =============================================================
@@ -466,7 +529,7 @@ targetUI:SetBackdrop({
     tile = true, tileSize = 32, edgeSize = 16,
     insets = { left = 4, right = 4, top = 4, bottom = 4 }
 })
-targetUI:SetSize(460, 80)
+targetUI:SetSize(500, 80)
 targetUI:SetPoint("BOTTOM", 0, 0)
 
 -- C. Specific Zone Dropdown
@@ -536,13 +599,13 @@ local scanScroll = CreateFrame("ScrollFrame", nil, scanView, "UIPanelScrollFrame
 scanScroll:SetPoint("TOPLEFT", 0, -5)
 scanScroll:SetPoint("BOTTOMRIGHT", -25, 85)
 local scanContent = CreateFrame("Frame", nil, scanScroll)
-scanContent:SetSize(420, 1)
+scanContent:SetSize(460, 1)
 scanScroll:SetScrollChild(scanContent)
 
 -- Helper: Create Row
 local function CreateBaseRow(parent, isHistory)
     local row = CreateFrame("Frame", nil, parent)
-    row:SetSize(420, 30)
+    row:SetSize(460, 30)
 
     -- 1. Name (Left)
     local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -560,6 +623,18 @@ local function CreateBaseRow(parent, isHistory)
     actionBtn:SetDisabledFontObject("GameFontDisableSmall")
     row.actionBtn = actionBtn
 
+    local whisperBtn
+    if not isHistory then
+        whisperBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
+        whisperBtn:SetSize(80, 22)
+        whisperBtn:SetPoint("RIGHT", actionBtn, "LEFT", -5, 0)
+        whisperBtn:SetNormalFontObject("GameFontNormalSmall")
+        whisperBtn:SetHighlightFontObject("GameFontHighlightSmall")
+        whisperBtn:SetDisabledFontObject("GameFontDisableSmall")
+        whisperBtn:SetText("Whisper")
+        row.whisperBtn = whisperBtn
+    end
+
     -- 3. Info Text
     local infoText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     if isHistory then
@@ -568,7 +643,7 @@ local function CreateBaseRow(parent, isHistory)
         infoText:SetJustifyH("RIGHT")
     else
         infoText:SetPoint("LEFT", nameText, "RIGHT", 5, 0)
-        infoText:SetWidth(170)
+        infoText:SetPoint("RIGHT", whisperBtn, "LEFT", -8, 0)
         infoText:SetJustifyH("LEFT")
     end
     row.infoText = infoText
@@ -612,9 +687,18 @@ local function UpdateScanList(results)
             row.infoText:SetText("Lvl " .. data.level .. " (" .. (data.zone or "?") .. ")")
 
             local history = historyDB[data.name]
+            local whisperKey = GetWhisperKey(data.name)
+            local whisperState = whispersDB and whispersDB[whisperKey]
 
             row.actionBtn:SetText("Invite")
             row.actionBtn:Enable()
+            row.whisperBtn:SetText("Whisper")
+            row.whisperBtn:Enable()
+
+            if whisperState and whisperState.lastOutbound then
+                row.whisperBtn:SetText("Whispered")
+                row.whisperBtn:Disable()
+            end
 
             if history then
                 if history.action == "DECLINED" then
@@ -626,6 +710,8 @@ local function UpdateScanList(results)
                      row.infoText:SetTextColor(0, 1, 0)
                      row.actionBtn:SetText("-")
                      row.actionBtn:Disable()
+                     row.whisperBtn:SetText("-")
+                     row.whisperBtn:Disable()
                 else
                      row.infoText:SetText("Invited")
                      row.actionBtn:SetText("Invited")
@@ -634,6 +720,15 @@ local function UpdateScanList(results)
             else
                  row.infoText:SetTextColor(1, 1, 1)
             end
+
+            row.whisperBtn:SetScript("OnClick", function(self)
+                local sent = SendWhisperToPlayer(data.name)
+                if sent then
+                    self:SetText("Whispered")
+                    self:Disable()
+                    print("|cff00ff00[NoGuild]|r Whisper sent to " .. data.name)
+                end
+            end)
 
             row.actionBtn:SetScript("OnClick", function(self)
                 if C_GuildInfo and C_GuildInfo.Invite then C_GuildInfo.Invite(data.name)
@@ -769,10 +864,141 @@ end
 
 
 -- =============================================================
--- 6. SETTINGS VIEW (Tab 3)
+-- 6. WHISPERS VIEW (Tab 6)
 -- =============================================================
 
-local setHeader = settingsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+local whispersHeader = whispersView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+whispersHeader:SetPoint("TOPLEFT", 10, -10)
+whispersHeader:SetText("Whisper Replies")
+
+local whispersHint = whispersView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+whispersHint:SetPoint("TOPLEFT", 10, -32)
+whispersHint:SetText("Incoming whisper replies from contacted players.")
+
+local whispersScroll = CreateFrame("ScrollFrame", nil, whispersView, "UIPanelScrollFrameTemplate")
+whispersScroll:SetPoint("TOPLEFT", 0, -50)
+whispersScroll:SetPoint("BOTTOMRIGHT", -25, 10)
+local whispersContent = CreateFrame("Frame", nil, whispersScroll)
+whispersContent:SetSize(460, 1)
+whispersScroll:SetScrollChild(whispersContent)
+
+local whisperRows = {}
+
+local function CreateWhisperRow(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetSize(460, 48)
+
+    row.nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    row.nameText:SetPoint("TOPLEFT", 5, -3)
+    row.nameText:SetWidth(140)
+    row.nameText:SetJustifyH("LEFT")
+
+    row.timeText = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    row.timeText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2)
+    row.timeText:SetWidth(140)
+    row.timeText:SetJustifyH("LEFT")
+
+    row.replyText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    row.replyText:SetPoint("TOPLEFT", 150, -5)
+    row.replyText:SetPoint("BOTTOMRIGHT", -170, 5)
+    row.replyText:SetJustifyH("LEFT")
+    row.replyText:SetJustifyV("TOP")
+
+    row.inviteBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
+    row.inviteBtn:SetSize(75, 20)
+    row.inviteBtn:SetPoint("TOPRIGHT", -85, -5)
+    row.inviteBtn:SetText("Invite")
+    row.inviteBtn:SetNormalFontObject("GameFontNormalSmall")
+    row.inviteBtn:SetHighlightFontObject("GameFontHighlightSmall")
+    row.inviteBtn:SetDisabledFontObject("GameFontDisableSmall")
+
+    row.clearBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
+    row.clearBtn:SetSize(75, 20)
+    row.clearBtn:SetPoint("TOPRIGHT", -5, -5)
+    row.clearBtn:SetText("Clear")
+    row.clearBtn:SetNormalFontObject("GameFontNormalSmall")
+    row.clearBtn:SetHighlightFontObject("GameFontHighlightSmall")
+    row.clearBtn:SetDisabledFontObject("GameFontDisableSmall")
+
+    return row
+end
+
+UpdateWhispersList = function()
+    for _, row in ipairs(whisperRows) do row:Hide() end
+    if not whispersDB then return end
+
+    local list = {}
+    for name, data in pairs(whispersDB) do
+        if type(data) == "table" and data.lastInbound and data.lastInbound ~= "" then
+            table.insert(list, { key = name, name = (data.displayName or name), data = data })
+        end
+    end
+    table.sort(list, function(a, b)
+        return (a.data.lastInboundTime or 0) > (b.data.lastInboundTime or 0)
+    end)
+
+    local yOffset = 0
+    local count = 0
+    for _, item in ipairs(list) do
+        count = count + 1
+        if not whisperRows[count] then whisperRows[count] = CreateWhisperRow(whispersContent) end
+        local row = whisperRows[count]
+        row:SetPoint("TOPLEFT", 0, -yOffset)
+        row:Show()
+
+        row.nameText:SetText(item.name)
+        row.timeText:SetText(date("%m/%d %H:%M", item.data.lastInboundTime or time()))
+        row.replyText:SetText(item.data.lastInbound)
+        local alreadyInvited = item.data.invited == true
+        if alreadyInvited then
+            row.inviteBtn:SetText("Invited")
+            row.inviteBtn:Disable()
+            row.inviteBtn:SetAlpha(0.6)
+        else
+            row.inviteBtn:SetText("Invite")
+            row.inviteBtn:Enable()
+            row.inviteBtn:SetAlpha(1.0)
+        end
+
+        row.inviteBtn:SetScript("OnClick", function(self)
+            if C_GuildInfo and C_GuildInfo.Invite then C_GuildInfo.Invite(item.name)
+            else GuildInvite(item.name) end
+
+            historyDB[item.name] = historyDB[item.name] or {}
+            historyDB[item.name].time = time()
+            historyDB[item.name].action = "INVITED"
+            historyDB[item.name].class = historyDB[item.name].class or "PRIEST"
+            if settingsDB.stats then settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1 end
+            item.data.invited = true
+
+            self:SetText("Invited")
+            self:Disable()
+            self:SetAlpha(0.6)
+        end)
+
+        row.clearBtn:SetScript("OnClick", function()
+            whispersDB[item.key] = nil
+            UpdateWhispersList()
+        end)
+
+        yOffset = yOffset + 50
+    end
+
+    whispersContent:SetHeight(yOffset)
+end
+
+-- =============================================================
+-- 7. SETTINGS VIEW (Tab 3)
+-- =============================================================
+
+local settingsScroll = CreateFrame("ScrollFrame", nil, settingsView, "UIPanelScrollFrameTemplate")
+settingsScroll:SetPoint("TOPLEFT", 0, -5)
+settingsScroll:SetPoint("BOTTOMRIGHT", -25, 10)
+local settingsContent = CreateFrame("Frame", nil, settingsScroll)
+settingsContent:SetSize(460, 1)
+settingsScroll:SetScrollChild(settingsContent)
+
+local setHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 setHeader:SetPoint("TOPLEFT", 10, -10)
 setHeader:SetText("Scan Filters")
 
@@ -798,19 +1024,90 @@ local function CreateInput(parent, title, dbKey, defaultVal, yPos)
     return editBox
 end
 
-local retentionBox = CreateInput(settingsView, "History Days:", "historyRetentionDays", 1, -40)
+local retentionBox = CreateInput(settingsContent, "History Days:", "historyRetentionDays", 1, -40)
+
+local whisperLabel = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+whisperLabel:SetPoint("TOPLEFT", 10, -70)
+whisperLabel:SetText("Whisper Template:")
+
+local whisperBoxFrame = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+whisperBoxFrame:SetPoint("TOPLEFT", 10, -106)
+whisperBoxFrame:SetSize(430, 90)
+whisperBoxFrame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+
+local whisperBox = CreateFrame("EditBox", nil, whisperBoxFrame)
+whisperBox:SetPoint("TOPLEFT", 8, -8)
+whisperBox:SetPoint("BOTTOMRIGHT", -8, 8)
+whisperBox:SetAutoFocus(false)
+whisperBox:SetTextInsets(5, 5, 0, 0)
+whisperBox:SetMultiLine(true)
+whisperBox:SetJustifyH("LEFT")
+whisperBox:SetJustifyV("TOP")
+whisperBox:SetMaxLetters(500)
+whisperBox:SetFontObject("GameFontHighlight")
+
+local whisperPreview = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+whisperPreview:SetPoint("TOPLEFT", 10, -202)
+whisperPreview:SetWidth(430)
+whisperPreview:SetJustifyH("LEFT")
+whisperPreview:SetJustifyV("TOP")
+
+local whisperCount = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+whisperCount:SetPoint("TOPLEFT", 10, -84)
+whisperCount:SetWidth(430)
+whisperCount:SetJustifyH("LEFT")
+
+local function CountWords(text)
+    local n = 0
+    for _ in string.gmatch(text or "", "%S+") do n = n + 1 end
+    return n
+end
+
+local function UpdateWhisperPreview()
+    if not settingsDB then return end
+    local template = settingsDB.whisperTemplate or ""
+    local sampleTarget = UnitName("player") or "Player"
+    local preview = BuildWhisperMessage(sampleTarget)
+    whisperPreview:SetText("Preview: " .. preview)
+
+    local templateChars = string.len(template)
+    local templateWords = CountWords(template)
+    local previewChars = string.len(preview)
+    whisperCount:SetText(string.format("Template: %d chars, %d words | Final: %d/%d chars", templateChars, templateWords, previewChars, MAX_WHISPER_CHARS))
+    if previewChars > MAX_WHISPER_CHARS then
+        whisperCount:SetTextColor(1, 0.2, 0.2)
+    else
+        whisperCount:SetTextColor(0.7, 0.9, 0.7)
+    end
+end
+
+whisperBox:SetScript("OnShow", function(self)
+    self:SetText(settingsDB.whisperTemplate or "")
+    UpdateWhisperPreview()
+end)
+whisperBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+whisperBox:SetScript("OnTextChanged", function(self)
+    if not settingsDB then return end
+    settingsDB.whisperTemplate = self:GetText()
+    UpdateWhisperPreview()
+end)
 
 -- Level Section
-local levelHeader = settingsView:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-levelHeader:SetPoint("TOPLEFT", 10, -70)
+local levelHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+levelHeader:SetPoint("TOPLEFT", 10, -271)
 levelHeader:SetText("Level Range:")
 
-local minBox = CreateInput(settingsView, "Min Level:", "minLevel", 1, -90)
-local maxBox = CreateInput(settingsView, "Max Level:", "maxLevel", 80, -115)
+local minBox = CreateInput(settingsContent, "Min Level:", "minLevel", 1, -291)
+local maxBox = CreateInput(settingsContent, "Max Level:", "maxLevel", 80, -316)
 
-local balLevelBtn = CreateFrame("Button", nil, settingsView, "GameMenuButtonTemplate")
+local balLevelBtn = CreateFrame("Button", nil, settingsContent, "GameMenuButtonTemplate")
 balLevelBtn:SetSize(220, 25)
-balLevelBtn:SetPoint("TOPLEFT", 20, -145)
+balLevelBtn:SetPoint("TOPLEFT", 20, -346)
 balLevelBtn:SetText("Balance Guild Level Distribution")
 balLevelBtn:SetScript("OnClick", function()
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
@@ -849,17 +1146,17 @@ balLevelBtn:SetScript("OnClick", function()
     print("|cff00ff00[NoGuild]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
 end)
 
-local classHeader = settingsView:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-classHeader:SetPoint("TOPLEFT", 10, -185)
+local classHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+classHeader:SetPoint("TOPLEFT", 10, -386)
 classHeader:SetText("Included Classes:")
 
-local chkY = -205
+local chkY = -406
 local chkX = 20
 
 local classCheckboxes = {}
 
 for i, cls in ipairs(CLASS_LIST) do
-    local cb = CreateFrame("CheckButton", nil, settingsView, "UICheckButtonTemplate")
+    local cb = CreateFrame("CheckButton", nil, settingsContent, "UICheckButtonTemplate")
     cb:SetPoint("TOPLEFT", chkX, chkY)
     cb:SetSize(24, 24)
 
@@ -889,7 +1186,7 @@ for i, cls in ipairs(CLASS_LIST) do
 end
 
 -- Balance Button
-local balBtn = CreateFrame("Button", nil, settingsView, "GameMenuButtonTemplate")
+local balBtn = CreateFrame("Button", nil, settingsContent, "GameMenuButtonTemplate")
 balBtn:SetSize(220, 25)
 balBtn:SetPoint("TOPLEFT", 20, chkY - 40) -- Adjusted position relative to end of checkboxes
 balBtn:SetText("Balance Guild Class Distribution")
@@ -919,6 +1216,8 @@ balBtn:SetScript("OnClick", function()
     print("|cff00ff00[NoGuild]|r Filters updated: Targeting 4 least popular classes.")
 end)
 
+settingsContent:SetHeight(math.abs(chkY - 100))
+
 -- =============================================================
 -- 7. SCAN LOGIC (With Queue System)
 -- =============================================================
@@ -931,7 +1230,22 @@ local currentScanZone = ""
 local accumulatedResults = {}
 
 scanLogic:RegisterEvent("CHAT_MSG_SYSTEM")
-scanLogic:SetScript("OnEvent", function(self, event, msg)
+scanLogic:RegisterEvent("CHAT_MSG_WHISPER")
+scanLogic:SetScript("OnEvent", function(self, event, ...)
+    if event == "CHAT_MSG_WHISPER" then
+        local msg, sender = ...
+        local key = GetWhisperKey(sender)
+        if key and key ~= "" and whispersDB and whispersDB[key] and whispersDB[key].lastOutbound then
+            whispersDB[key].lastInbound = msg
+            whispersDB[key].lastInboundTime = time()
+            whispersDB[key].sender = sender
+            whispersDB[key].displayName = whispersDB[key].displayName or GetShortName(sender)
+            if whispersView:IsVisible() and UpdateWhispersList then UpdateWhispersList() end
+        end
+        return
+    end
+
+    local msg = ...
     local declinedName = string.match(msg, "^(.*) declines guild invitation")
 
     if declinedName and historyDB[declinedName] then
@@ -1184,8 +1498,10 @@ SLASH_NOGUILD1 = "/noguild"
 SlashCmdList["NOGUILD"] = function(msg)
     if msg == "reset" then
         NoGuildHistoryDB = {}
+        NoGuildWhispersDB = {}
         historyDB = NoGuildHistoryDB
-        print("History cleared.")
+        whispersDB = NoGuildWhispersDB
+        print("History and whispers cleared.")
         return
     end
 
