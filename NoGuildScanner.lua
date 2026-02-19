@@ -129,19 +129,34 @@ local function GetWhisperKey(name)
     return GetShortName(name)
 end
 
-local function BuildWhisperMessage(targetName)
+local function NormalizeClassName(classToken)
+    if not classToken or classToken == "" then return "Adventurer" end
+    local upper = string.upper(classToken)
+    if LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[upper] then
+        return LOCALIZED_CLASS_NAMES_MALE[upper]
+    end
+    if LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[upper] then
+        return LOCALIZED_CLASS_NAMES_FEMALE[upper]
+    end
+    return upper:sub(1, 1) .. upper:sub(2):lower()
+end
+
+local function BuildWhisperMessage(targetName, targetClass)
     local tmpl = (settingsDB and settingsDB.whisperTemplate) or "Hi <character>!"
     local short = GetShortName(targetName)
     local guildName = GetGuildInfo("player") or "our guild"
+    local className = NormalizeClassName(targetClass)
     tmpl = tmpl:gsub("<character>", short)
     tmpl = tmpl:gsub("{character}", short)
     tmpl = tmpl:gsub("<guild>", guildName)
     tmpl = tmpl:gsub("{guild}", guildName)
+    tmpl = tmpl:gsub("<class>", className)
+    tmpl = tmpl:gsub("{class}", className)
     return tmpl
 end
 
-local function SendWhisperToPlayer(targetName)
-    local msg = BuildWhisperMessage(targetName)
+local function SendWhisperToPlayer(targetName, targetClass)
+    local msg = BuildWhisperMessage(targetName, targetClass)
     if string.len(msg) > MAX_WHISPER_CHARS then
         print(string.format("|cffff0000[NoGuild]|r Whisper too long (%d/%d). Shorten your template in Settings.", string.len(msg), MAX_WHISPER_CHARS))
         return false
@@ -726,7 +741,7 @@ local function UpdateScanList(results)
             end
 
             row.whisperBtn:SetScript("OnClick", function(self)
-                local sent = SendWhisperToPlayer(data.name)
+                local sent = SendWhisperToPlayer(data.name, data.class)
                 if sent then
                     self:SetText("Whispered")
                     self:Disable()
@@ -1044,6 +1059,8 @@ whisperHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
 whisperHelpBtn:SetScript("OnEnter", function(self)
     local playerName = UnitName("player") or "Player"
     local guildName = GetGuildInfo("player") or "our guild"
+    local _, playerClassFile = UnitClass("player")
+    local playerClassName = NormalizeClassName(playerClassFile)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Whisper Template Tokens", 1, 0.82, 0)
     GameTooltip:AddLine(" ", 1, 1, 1)
@@ -1054,6 +1071,10 @@ whisperHelpBtn:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("<guild> or {guild}", 0.9, 0.9, 0.9)
     GameTooltip:AddLine("Replaced with your current guild name.", 0.7, 0.7, 0.7, true)
     GameTooltip:AddLine("Resolves now: " .. guildName, 0.5, 0.9, 0.5, true)
+    GameTooltip:AddLine(" ", 1, 1, 1)
+    GameTooltip:AddLine("<class> or {class}", 0.9, 0.9, 0.9)
+    GameTooltip:AddLine("Replaced with the target player's class.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine("Resolves now: " .. playerClassName, 0.5, 0.9, 0.5, true)
     GameTooltip:Show()
 end)
 whisperHelpBtn:SetScript("OnLeave", GameTooltip_Hide)
@@ -1100,7 +1121,8 @@ local function UpdateWhisperPreview()
     if not settingsDB then return end
     local template = settingsDB.whisperTemplate or ""
     local sampleTarget = UnitName("player") or "Player"
-    local preview = BuildWhisperMessage(sampleTarget)
+    local _, sampleClass = UnitClass("player")
+    local preview = BuildWhisperMessage(sampleTarget, sampleClass)
     whisperPreview:SetText("Preview: " .. preview)
 
     local templateChars = string.len(template)
