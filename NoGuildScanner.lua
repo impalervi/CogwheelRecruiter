@@ -11,6 +11,8 @@ local whispersDB -- Shortcut to NoGuildWhispersDB
 local UpdateMinimapPosition -- Forward declaration
 local UpdateWhispersList -- Forward declaration
 local UpdateTabButtons -- Forward declaration
+local StartWhispersTabFlash -- Forward declaration
+local StopWhispersTabFlash -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
 
@@ -620,6 +622,7 @@ local function SetTab(id)
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
     elseif id == 6 then
         whispersView:Show()
+        if StopWhispersTabFlash then StopWhispersTabFlash() end
         if UpdateWhispersList then UpdateWhispersList() end
     end
 
@@ -638,6 +641,47 @@ tab6:SetPoint("LEFT", tab1, "RIGHT", 4, 0)
 tab6:SetText("Whispers")
 tab6:SetScript("OnClick", function() SetTab(6) end)
 
+local isWhispersTabFlashing = false
+local hasUnreadWhispers = false
+local whispersHighlightTicker
+local whispersHighlightOn = false
+
+StopWhispersTabFlash = function()
+    isWhispersTabFlashing = false
+    hasUnreadWhispers = false
+    if whispersHighlightTicker then
+        whispersHighlightTicker:Cancel()
+        whispersHighlightTicker = nil
+    end
+    whispersHighlightOn = false
+    tab6:UnlockHighlight()
+    tab6:SetAlpha((currentTab == 6) and 1.0 or 0.85)
+end
+
+StartWhispersTabFlash = function()
+    if currentTab == 6 then return end
+    hasUnreadWhispers = true
+    if isWhispersTabFlashing then return end
+
+    isWhispersTabFlashing = true
+    if not (C_Timer and C_Timer.NewTicker) then
+        tab6:LockHighlight()
+        whispersHighlightOn = true
+        return
+    end
+    whispersHighlightOn = true
+    tab6:LockHighlight()
+    whispersHighlightTicker = C_Timer.NewTicker(0.6, function()
+        if not isWhispersTabFlashing or not hasUnreadWhispers then return end
+        whispersHighlightOn = not whispersHighlightOn
+        if whispersHighlightOn then
+            tab6:LockHighlight()
+        else
+            tab6:UnlockHighlight()
+        end
+    end)
+end
+
 local function CreateAuxTabButton(anchor, label, tabId)
     local btn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
     btn:SetSize(80, 20)
@@ -653,8 +697,8 @@ end
 
 local auxStart = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
 auxStart:SetSize(80, 20)
-auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -208, 31)
-auxStart:SetText("History")
+auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -166, 31)
+auxStart:SetText("Invites")
 if auxStart:GetFontString() then
     auxStart:GetFontString():SetTextColor(1, 1, 1)
 end
@@ -663,8 +707,7 @@ auxStart:SetScript("OnClick", function() SetTab(2) end)
 
 local btnStats = CreateAuxTabButton(auxStart, "Stats", 4)
 local btnGuild = CreateAuxTabButton(btnStats, "Guild", 5)
-local btnFilters = CreateAuxTabButton(btnGuild, "Filters", 7)
-local btnSettings = CreateAuxTabButton(btnFilters, "Settings", 3)
+local btnSettings = CreateAuxTabButton(btnGuild, "Settings", 3)
 local btnHistory = auxStart
 
 UpdateTabButtons = function()
@@ -680,7 +723,7 @@ UpdateTabButtons = function()
         end
     end
 
-    local auxTabs = { btnHistory, btnStats, btnGuild, btnFilters, btnSettings }
+    local auxTabs = { btnHistory, btnStats, btnGuild, btnSettings }
     for _, btn in ipairs(auxTabs) do
         if btn:GetFontString() then
             btn:GetFontString():SetTextColor(1, 1, 1)
@@ -712,11 +755,9 @@ targetUI:SetPoint("BOTTOM", 0, 0)
 
 -- C. Specific Zone Dropdown
 local ddLabel = targetUI:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-ddLabel:SetPoint("TOPLEFT", 90, -15)
 ddLabel:SetText("Select Zone to Scan:")
 
 local zoneDropDown = CreateFrame("Frame", "NoGuildSpecificDropDown", targetUI, "UIDropDownMenuTemplate")
-zoneDropDown:SetPoint("TOPLEFT", ddLabel, "BOTTOMLEFT", -15, -5)
 UIDropDownMenu_SetWidth(zoneDropDown, 150)
 UIDropDownMenu_SetText(zoneDropDown, "Select a Zone...")
 
@@ -766,7 +807,6 @@ end)
 -- D. Scan Button
 local scanBtn = CreateFrame("Button", nil, targetUI, "UIPanelButtonTemplate")
 scanBtn:SetSize(110, 25)
-scanBtn:SetPoint("LEFT", zoneDropDown, "RIGHT", -5, 2)
 scanBtn:SetText("Start Scan")
 scanBtn:SetNormalFontObject("GameFontNormal")
 scanBtn:SetHighlightFontObject("GameFontNormal")
@@ -774,6 +814,36 @@ scanBtn:SetDisabledFontObject("GameFontDisable")
 scanBtn:SetScript("OnClick", function()
     if StartScanSequence then StartScanSequence() end
 end)
+
+local scanFiltersBtn = CreateFrame("Button", nil, targetUI, "UIPanelButtonTemplate")
+scanFiltersBtn:SetSize(28, 25)
+scanFiltersBtn:SetText("")
+scanFiltersBtn:SetScript("OnClick", function() SetTab(7) end)
+local scanFiltersIcon = scanFiltersBtn:CreateTexture(nil, "ARTWORK")
+scanFiltersIcon:SetSize(16, 16)
+scanFiltersIcon:SetPoint("CENTER")
+scanFiltersIcon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+scanFiltersBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Filters", 1, 0.82, 0)
+    GameTooltip:Show()
+end)
+scanFiltersBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+-- Center row: Zone dropdown + Start Scan + Filters
+local scanControlsRow = CreateFrame("Frame", nil, targetUI)
+scanControlsRow:SetSize(380, 28)
+scanControlsRow:SetPoint("CENTER", targetUI, "CENTER", 0, -10)
+
+zoneDropDown:ClearAllPoints()
+scanBtn:ClearAllPoints()
+scanFiltersBtn:ClearAllPoints()
+ddLabel:ClearAllPoints()
+
+zoneDropDown:SetPoint("LEFT", scanControlsRow, "LEFT", 0, 0)
+scanBtn:SetPoint("LEFT", zoneDropDown, "RIGHT", -8, 2)
+scanFiltersBtn:SetPoint("LEFT", scanBtn, "RIGHT", 4, 0)
+ddLabel:SetPoint("BOTTOM", zoneDropDown, "TOP", 12, 2)
 
 -- E. Results List (Scroll)
 local scanScroll = CreateFrame("ScrollFrame", nil, scanView, "UIPanelScrollFrameTemplate")
@@ -806,8 +876,9 @@ local function CreateBaseRow(parent, isHistory)
 
     local whisperBtn
     if not isHistory then
+        actionBtn:SetSize(72, 22)
         whisperBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
-        whisperBtn:SetSize(80, 22)
+        whisperBtn:SetSize(72, 22)
         whisperBtn:SetPoint("RIGHT", actionBtn, "LEFT", -5, 0)
         whisperBtn:SetNormalFontObject("GameFontNormalSmall")
         whisperBtn:SetHighlightFontObject("GameFontHighlightSmall")
@@ -824,8 +895,10 @@ local function CreateBaseRow(parent, isHistory)
         infoText:SetJustifyH("RIGHT")
     else
         infoText:SetPoint("LEFT", nameText, "RIGHT", 5, 0)
-        infoText:SetPoint("RIGHT", whisperBtn, "LEFT", -8, 0)
+        infoText:SetPoint("RIGHT", whisperBtn, "LEFT", -6, 0)
         infoText:SetJustifyH("LEFT")
+        if infoText.SetWordWrap then infoText:SetWordWrap(false) end
+        if infoText.SetMaxLines then infoText:SetMaxLines(1) end
     end
     row.infoText = infoText
 
@@ -956,6 +1029,10 @@ searchBox:SetScript("OnEditFocusLost", function(self)
     if self:GetText() == "" then searchPlaceholder:Show() end
 end)
 
+local historyHint = historyView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+historyHint:SetPoint("TOPLEFT", 220, -8)
+historyHint:SetText("Showing last 50 invite outcomes")
+
 local clearBtn = CreateFrame("Button", nil, historyView, "UIPanelButtonTemplate")
 clearBtn:SetSize(140, 30)
 clearBtn:SetPoint("BOTTOM", 0, 10)
@@ -976,6 +1053,30 @@ histScroll:SetScrollChild(histContent)
 
 local histRows = {}
 
+local function CreateInviteHistoryRow(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetSize(460, 32)
+
+    row.nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    row.nameText:SetPoint("LEFT", 8, 0)
+    row.nameText:SetWidth(170)
+    row.nameText:SetJustifyH("LEFT")
+
+    row.actionBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
+    row.actionBtn:SetSize(84, 22)
+    row.actionBtn:SetPoint("RIGHT", -6, 0)
+    row.actionBtn:SetNormalFontObject("GameFontNormalSmall")
+    row.actionBtn:SetHighlightFontObject("GameFontHighlightSmall")
+    row.actionBtn:SetDisabledFontObject("GameFontDisableSmall")
+
+    row.infoText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    row.infoText:SetPoint("LEFT", row.nameText, "RIGHT", 8, 0)
+    row.infoText:SetPoint("RIGHT", row.actionBtn, "LEFT", -8, 0)
+    row.infoText:SetJustifyH("LEFT")
+
+    return row
+end
+
 function UpdateHistoryList()
     for _, row in ipairs(histRows) do row:Hide() end
 
@@ -983,7 +1084,8 @@ function UpdateHistoryList()
 
     local list = {}
     for name, data in pairs(historyDB) do
-        if filter == "" or name:lower():find(filter) then
+        local isValid = type(data) == "table" and type(data.time) == "number"
+        if isValid and (filter == "" or name:lower():find(filter)) then
             table.insert(list, {name=name, data=data})
         end
     end
@@ -991,10 +1093,12 @@ function UpdateHistoryList()
 
     local yOffset = 0
     local count = 0
+    local maxRows = math.min(#list, 50)
 
-    for _, item in ipairs(list) do
+    for i = 1, maxRows do
+        local item = list[i]
         count = count + 1
-        if not histRows[count] then histRows[count] = CreateBaseRow(histContent, true) end
+        if not histRows[count] then histRows[count] = CreateInviteHistoryRow(histContent) end
 
         local row = histRows[count]
         row:SetPoint("TOPLEFT", 0, -yOffset)
@@ -1011,16 +1115,12 @@ function UpdateHistoryList()
         row.nameText:SetText(name)
 
         local dateStr = date("%m/%d %H:%M", data.time)
-
         if data.action == "DECLINED" then
-            row.infoText:SetText("Declined (" .. dateStr .. ")")
-            row.infoText:SetTextColor(1, 0, 0)
+            row.infoText:SetText("|cffff4040Declined|r  |cff8f8f8f" .. dateStr .. "|r")
         elseif data.action == "JOINED" then
-            row.infoText:SetText("Joined (" .. dateStr .. ")")
-            row.infoText:SetTextColor(0, 1, 0)
+            row.infoText:SetText("|cff6fdc6fJoined|r  |cff8f8f8f" .. dateStr .. "|r")
         else
-            row.infoText:SetText("Invited (" .. dateStr .. ")")
-            row.infoText:SetTextColor(1, 1, 1)
+            row.infoText:SetText("|cffffd56aInvited|r  |cff8f8f8f" .. dateStr .. "|r")
         end
 
         if data.action == "JOINED" then
@@ -1038,7 +1138,8 @@ function UpdateHistoryList()
                 UpdateHistoryList()
             end)
         end
-        yOffset = yOffset + 30
+
+        yOffset = yOffset + 32
     end
     histContent:SetHeight(yOffset)
 end
@@ -1644,7 +1745,7 @@ balLevelBtn:SetScript("OnClick", function()
 end)
 
 -- History Retention (revamped)
-local historyTop = welcomeTop - 176
+local historyTop = welcomeTop - 168
 local historyHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 historyHeader:SetPoint("TOPLEFT", 10, historyTop)
 historyHeader:SetText("History Retention:")
@@ -1725,6 +1826,7 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
             whispersDB[key].lastInboundTime = time()
             whispersDB[key].sender = sender
             whispersDB[key].displayName = whispersDB[key].displayName or GetShortName(sender)
+            if StartWhispersTabFlash and currentTab ~= 6 then StartWhispersTabFlash() end
             if whispersView:IsVisible() and UpdateWhispersList then UpdateWhispersList() end
         end
         return
@@ -1741,7 +1843,13 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
 
     local joinedName = string.match(msg, "^(.*) has joined the guild")
     if joinedName then
-        historyDB[joinedName] = { action = "JOINED", time = time(), class = "PRIEST" }
+        local existing = historyDB[joinedName] or {}
+        historyDB[joinedName] = {
+            action = "JOINED",
+            time = time(),
+            class = existing.class or "PRIEST",
+            level = existing.level
+        }
         if settingsDB and settingsDB.stats then settingsDB.stats.joined = (settingsDB.stats.joined or 0) + 1 end
         print("|cff00ff00[NoGuild]|r " .. joinedName .. " joined!")
         if settingsDB and settingsDB.autoWelcomeEnabled then
