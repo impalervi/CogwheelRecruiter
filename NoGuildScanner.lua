@@ -750,7 +750,8 @@ targetUI:SetBackdrop({
     tile = true, tileSize = 32, edgeSize = 16,
     insets = { left = 4, right = 4, top = 4, bottom = 4 }
 })
-targetUI:SetSize(500, 80)
+local TARGET_UI_COLLAPSED_HEIGHT = 80
+targetUI:SetSize(500, TARGET_UI_COLLAPSED_HEIGHT)
 targetUI:SetPoint("BOTTOM", 0, 0)
 
 -- C. Specific Zone Dropdown
@@ -833,7 +834,7 @@ scanFiltersBtn:SetScript("OnLeave", GameTooltip_Hide)
 -- Center row: Zone dropdown + Start Scan + Filters
 local scanControlsRow = CreateFrame("Frame", nil, targetUI)
 scanControlsRow:SetSize(380, 28)
-scanControlsRow:SetPoint("CENTER", targetUI, "CENTER", 0, -10)
+scanControlsRow:SetPoint("BOTTOM", targetUI, "BOTTOM", 0, 20)
 
 zoneDropDown:ClearAllPoints()
 scanBtn:ClearAllPoints()
@@ -1491,9 +1492,17 @@ welcomeBox:SetScript("OnTextChanged", function(self)
 end)
 
 
+local saveFiltersBtn = CreateFrame("Button", nil, filtersView, "UIPanelButtonTemplate")
+saveFiltersBtn:SetSize(94, 22)
+saveFiltersBtn:SetPoint("BOTTOM", filtersView, "BOTTOM", 0, 10)
+saveFiltersBtn:SetText("Save Filters")
+saveFiltersBtn:SetScript("OnClick", function()
+    SetTab(1)
+end)
+
 local filtersScroll = CreateFrame("ScrollFrame", nil, filtersView, "UIPanelScrollFrameTemplate")
 filtersScroll:SetPoint("TOPLEFT", 0, -5)
-filtersScroll:SetPoint("BOTTOMRIGHT", -25, 10)
+filtersScroll:SetPoint("BOTTOMRIGHT", -25, 40)
 local filtersContent = CreateFrame("Frame", nil, filtersScroll)
 filtersContent:SetSize(460, 1)
 filtersScroll:SetScrollChild(filtersContent)
