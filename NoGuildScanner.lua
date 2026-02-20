@@ -149,6 +149,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             if not settingsDB.whisperTemplate then
                 settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community while you continue your adventure leveling up?"
             end
+            if settingsDB.autoWelcomeEnabled == nil then settingsDB.autoWelcomeEnabled = false end
+            if not settingsDB.welcomeTemplate then
+                settingsDB.welcomeTemplate = "Welcome to <guild>, <character>!"
+            end
         end
 
         if UpdateMinimapPosition then UpdateMinimapPosition() end
@@ -239,6 +243,41 @@ local function BuildWhisperMessage(targetName, targetClass)
     return tmpl
 end
 
+local function BuildWelcomeMessage(targetName)
+    local tmpl = (settingsDB and settingsDB.welcomeTemplate) or "Welcome to <guild>, <character>!"
+    local short = GetShortName(targetName)
+    local guildName = GetGuildInfo("player") or "our guild"
+    tmpl = tmpl:gsub("<character>", short)
+    tmpl = tmpl:gsub("{character}", short)
+    tmpl = tmpl:gsub("<guild>", guildName)
+    tmpl = tmpl:gsub("{guild}", guildName)
+    return tmpl
+end
+
+local function SendDelayedWelcomeMessage(targetName)
+    if not C_Timer or not C_Timer.After then
+        return
+    end
+
+    C_Timer.After(2, function()
+        if not settingsDB or not settingsDB.autoWelcomeEnabled then
+            return
+        end
+
+        local welcomeMsg = BuildWelcomeMessage(targetName)
+        if string.len(welcomeMsg) > MAX_WHISPER_CHARS then
+            print(string.format("|cffff0000[NoGuild]|r Welcome message too long (%d/%d). Shorten it in Settings.", string.len(welcomeMsg), MAX_WHISPER_CHARS))
+            return
+        end
+
+        if C_ChatInfo and C_ChatInfo.SendChatMessage then
+            C_ChatInfo.SendChatMessage(welcomeMsg, "GUILD")
+        else
+            SendChatMessage(welcomeMsg, "GUILD")
+        end
+    end)
+end
+
 local function SendWhisperToPlayer(targetName, targetClass)
     local msg = BuildWhisperMessage(targetName, targetClass)
     if string.len(msg) > MAX_WHISPER_CHARS then
@@ -278,6 +317,10 @@ historyView:Hide()
 local settingsView = CreateFrame("Frame", nil, mainFrame)
 settingsView:SetAllPoints(contentPanel)
 settingsView:Hide()
+
+local filtersView = CreateFrame("Frame", nil, mainFrame)
+filtersView:SetAllPoints(contentPanel)
+filtersView:Hide()
 
 local statsView = CreateFrame("Frame", nil, mainFrame)
 statsView:SetAllPoints(contentPanel)
@@ -554,6 +597,7 @@ local function SetTab(id)
     scanView:Hide()
     historyView:Hide()
     settingsView:Hide()
+    filtersView:Hide()
     statsView:Hide()
     guildStatsView:Hide()
     whispersView:Hide()
@@ -565,6 +609,8 @@ local function SetTab(id)
         if UpdateHistoryList then UpdateHistoryList() end
     elseif id == 3 then
         settingsView:Show()
+    elseif id == 7 then
+        filtersView:Show()
     elseif id == 4 then
         statsView:Show()
         UpdateStatsView()
@@ -607,7 +653,7 @@ end
 
 local auxStart = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
 auxStart:SetSize(80, 20)
-auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -166, 31)
+auxStart:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOM", -208, 31)
 auxStart:SetText("History")
 if auxStart:GetFontString() then
     auxStart:GetFontString():SetTextColor(1, 1, 1)
@@ -617,7 +663,8 @@ auxStart:SetScript("OnClick", function() SetTab(2) end)
 
 local btnStats = CreateAuxTabButton(auxStart, "Stats", 4)
 local btnGuild = CreateAuxTabButton(btnStats, "Guild", 5)
-local btnSettings = CreateAuxTabButton(btnGuild, "Settings", 3)
+local btnFilters = CreateAuxTabButton(btnGuild, "Filters", 7)
+local btnSettings = CreateAuxTabButton(btnFilters, "Settings", 3)
 local btnHistory = auxStart
 
 UpdateTabButtons = function()
@@ -633,7 +680,7 @@ UpdateTabButtons = function()
         end
     end
 
-    local auxTabs = { btnHistory, btnStats, btnGuild, btnSettings }
+    local auxTabs = { btnHistory, btnStats, btnGuild, btnFilters, btnSettings }
     for _, btn in ipairs(auxTabs) do
         if btn:GetFontString() then
             btn:GetFontString():SetTextColor(1, 1, 1)
@@ -1134,7 +1181,7 @@ settingsScroll:SetScrollChild(settingsContent)
 
 local setHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 setHeader:SetPoint("TOPLEFT", 10, -10)
-setHeader:SetText("Scan Filters")
+setHeader:SetText("Settings")
 
 local whisperLabel = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 whisperLabel:SetPoint("TOPLEFT", 10, -38)
@@ -1238,17 +1285,133 @@ whisperBox:SetScript("OnTextChanged", function(self)
     UpdateWhisperPreview()
 end)
 
+local welcomeTop = -188
+local welcomeHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+welcomeHeader:SetPoint("TOPLEFT", 10, welcomeTop)
+welcomeHeader:SetText("Auto Welcome Message:")
+
+local welcomeHelpBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+welcomeHelpBtn:SetSize(18, 18)
+welcomeHelpBtn:SetPoint("LEFT", welcomeHeader, "RIGHT", 6, 0)
+welcomeHelpBtn:SetText("i")
+welcomeHelpBtn:SetNormalFontObject("GameFontHighlightSmall")
+welcomeHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
+welcomeHelpBtn:SetScript("OnEnter", function(self)
+    local playerName = UnitName("player") or "Player"
+    local guildName = GetGuildInfo("player") or "our guild"
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Welcome Message Tokens", 1, 0.82, 0)
+    GameTooltip:AddLine(" ", 1, 1, 1)
+    GameTooltip:AddLine("<character> or {character}", 0.9, 0.9, 0.9)
+    GameTooltip:AddLine("Replaced with the new guild member's name.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine("Resolves now: " .. playerName, 0.5, 0.9, 0.5, true)
+    GameTooltip:AddLine(" ", 1, 1, 1)
+    GameTooltip:AddLine("<guild> or {guild}", 0.9, 0.9, 0.9)
+    GameTooltip:AddLine("Replaced with your current guild name.", 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine("Resolves now: " .. guildName, 0.5, 0.9, 0.5, true)
+    GameTooltip:Show()
+end)
+welcomeHelpBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+local welcomeEnabledCB = CreateFrame("CheckButton", nil, settingsContent, "UICheckButtonTemplate")
+welcomeEnabledCB:SetPoint("TOPLEFT", 10, welcomeTop - 20)
+welcomeEnabledCB:SetSize(24, 24)
+welcomeEnabledCB.text = welcomeEnabledCB:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+welcomeEnabledCB.text:SetPoint("LEFT", welcomeEnabledCB, "RIGHT", 5, 0)
+welcomeEnabledCB.text:SetText("Enable automatic guild welcome message")
+
+local welcomeCount = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+welcomeCount:SetPoint("TOPLEFT", 10, welcomeTop - 40)
+welcomeCount:SetWidth(430)
+welcomeCount:SetJustifyH("LEFT")
+
+local welcomeBoxFrame = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+welcomeBoxFrame:SetPoint("TOPLEFT", 10, welcomeTop - 56)
+welcomeBoxFrame:SetSize(430, 76)
+welcomeBoxFrame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+
+local welcomeBox = CreateFrame("EditBox", nil, welcomeBoxFrame)
+welcomeBox:SetPoint("TOPLEFT", 8, -8)
+welcomeBox:SetPoint("BOTTOMRIGHT", -8, 8)
+welcomeBox:SetAutoFocus(false)
+welcomeBox:SetTextInsets(5, 5, 0, 0)
+welcomeBox:SetMultiLine(true)
+welcomeBox:SetJustifyH("LEFT")
+welcomeBox:SetJustifyV("TOP")
+welcomeBox:SetMaxLetters(500)
+welcomeBox:SetFontObject("GameFontHighlight")
+
+local welcomePreview = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+welcomePreview:SetPoint("TOPLEFT", 10, welcomeTop - 136)
+welcomePreview:SetWidth(430)
+welcomePreview:SetJustifyH("LEFT")
+welcomePreview:SetJustifyV("TOP")
+
+local function UpdateWelcomePreview()
+    if not settingsDB then return end
+    local template = settingsDB.welcomeTemplate or ""
+    local sampleTarget = UnitName("player") or "Player"
+    local preview = BuildWelcomeMessage(sampleTarget)
+    welcomePreview:SetText("Preview: " .. preview)
+
+    local templateChars = string.len(template)
+    local templateWords = CountWords(template)
+    local previewChars = string.len(preview)
+    welcomeCount:SetText(string.format("Template: %d chars, %d words | Final: %d/%d chars", templateChars, templateWords, previewChars, MAX_WHISPER_CHARS))
+    if previewChars > MAX_WHISPER_CHARS then
+        welcomeCount:SetTextColor(1, 0.2, 0.2)
+    else
+        welcomeCount:SetTextColor(0.7, 0.9, 0.7)
+    end
+end
+
+welcomeEnabledCB:SetScript("OnShow", function(self)
+    self:SetChecked(settingsDB and settingsDB.autoWelcomeEnabled == true)
+end)
+welcomeEnabledCB:SetScript("OnClick", function(self)
+    if not settingsDB then return end
+    settingsDB.autoWelcomeEnabled = self:GetChecked() == true
+end)
+
+welcomeBox:SetScript("OnShow", function(self)
+    self:SetText(settingsDB.welcomeTemplate or "")
+    UpdateWelcomePreview()
+end)
+welcomeBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+welcomeBox:SetScript("OnTextChanged", function(self)
+    if not settingsDB then return end
+    settingsDB.welcomeTemplate = self:GetText()
+    UpdateWelcomePreview()
+end)
+
+
+local filtersScroll = CreateFrame("ScrollFrame", nil, filtersView, "UIPanelScrollFrameTemplate")
+filtersScroll:SetPoint("TOPLEFT", 0, -5)
+filtersScroll:SetPoint("BOTTOMRIGHT", -25, 10)
+local filtersContent = CreateFrame("Frame", nil, filtersScroll)
+filtersContent:SetSize(460, 1)
+filtersScroll:SetScrollChild(filtersContent)
+
+local filtersHeader = filtersContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+filtersHeader:SetPoint("TOPLEFT", 10, -10)
+filtersHeader:SetText("Filters")
+
 -- Class Section
-local classHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-classHeader:SetPoint("TOPLEFT", 10, -188)
+local classHeader = filtersContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+classHeader:SetPoint("TOPLEFT", 10, -38)
 classHeader:SetText("Included Classes:")
 
 local classCheckboxes = {}
-local classStartY = -208
+local classStartY = -58
 local classCols = {20, 160, 300}
 
 for i, cls in ipairs(CLASS_LIST) do
-    local cb = CreateFrame("CheckButton", nil, settingsContent, "UICheckButtonTemplate")
+    local cb = CreateFrame("CheckButton", nil, filtersContent, "UICheckButtonTemplate")
     local col = ((i - 1) % 3) + 1
     local row = math.floor((i - 1) / 3)
     cb:SetPoint("TOPLEFT", classCols[col], classStartY - (row * 24))
@@ -1273,7 +1436,7 @@ for i, cls in ipairs(CLASS_LIST) do
 end
 
 -- Balance Button
-local balBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+local balBtn = CreateFrame("Button", nil, filtersContent, "UIPanelButtonTemplate")
 balBtn:SetSize(220, 25)
 local classRows = math.floor((#CLASS_LIST + 2) / 3)
 local classBlockBottom = classStartY - ((classRows - 1) * 24) - 16
@@ -1307,11 +1470,11 @@ end)
 
 -- Level Section (compact)
 local levelTop = classBlockBottom - 56
-local levelHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+local levelHeader = filtersContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 levelHeader:SetPoint("TOPLEFT", 10, levelTop)
 levelHeader:SetText("Level Range:")
 
-local minGroup = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+local minGroup = CreateFrame("Frame", nil, filtersContent, "BackdropTemplate")
 minGroup:SetPoint("TOPLEFT", 10, levelTop - 20)
 minGroup:SetSize(206, 76)
 minGroup:SetBackdrop({
@@ -1323,7 +1486,7 @@ minGroup:SetBackdrop({
 minGroup:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
 minGroup:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.9)
 
-local maxGroup = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+local maxGroup = CreateFrame("Frame", nil, filtersContent, "BackdropTemplate")
 maxGroup:SetPoint("LEFT", minGroup, "RIGHT", 8, 0)
 maxGroup:SetSize(206, 76)
 maxGroup:SetBackdrop({
@@ -1335,7 +1498,7 @@ maxGroup:SetBackdrop({
 maxGroup:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
 maxGroup:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.9)
 
-local minLevelSlider = CreateFrame("Slider", "NoGuildMinLevelSlider", settingsContent, "OptionsSliderTemplate")
+local minLevelSlider = CreateFrame("Slider", "NoGuildMinLevelSlider", filtersContent, "OptionsSliderTemplate")
 minLevelSlider:SetPoint("TOPLEFT", minGroup, "TOPLEFT", 8, -22)
 minLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
 minLevelSlider:SetValueStep(1)
@@ -1348,7 +1511,7 @@ _G[minLevelSlider:GetName() .. "Text"]:SetText("Min")
 minLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
 minLevelSlider:GetThumbTexture():SetSize(16, 24)
 
-local maxLevelSlider = CreateFrame("Slider", "NoGuildMaxLevelSlider", settingsContent, "OptionsSliderTemplate")
+local maxLevelSlider = CreateFrame("Slider", "NoGuildMaxLevelSlider", filtersContent, "OptionsSliderTemplate")
 maxLevelSlider:SetPoint("TOPLEFT", maxGroup, "TOPLEFT", 8, -22)
 maxLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
 maxLevelSlider:SetValueStep(1)
@@ -1379,7 +1542,7 @@ CreateSliderTrack(minLevelSlider, 0.2, 0.8, 0.2)
 CreateSliderTrack(maxLevelSlider, 0.9, 0.7, 0.2)
 
 local function CreateLevelBadge(anchorSlider)
-    local badge = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+    local badge = CreateFrame("Frame", nil, filtersContent, "BackdropTemplate")
     badge:SetSize(52, 20)
     badge:SetPoint("TOP", anchorSlider, "BOTTOM", 0, -1)
     badge:SetBackdrop({
@@ -1443,7 +1606,7 @@ maxLevelSlider:SetScript("OnValueChanged", function()
     RefreshLevelRangeText("max")
 end)
 
-local balLevelBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+local balLevelBtn = CreateFrame("Button", nil, filtersContent, "UIPanelButtonTemplate")
 balLevelBtn:SetSize(220, 25)
 balLevelBtn:SetPoint("TOPLEFT", 20, levelTop - 104)
 balLevelBtn:SetText("Balance Guild Level Distribution")
@@ -1481,7 +1644,7 @@ balLevelBtn:SetScript("OnClick", function()
 end)
 
 -- History Retention (revamped)
-local historyTop = levelTop - 146
+local historyTop = welcomeTop - 176
 local historyHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 historyHeader:SetPoint("TOPLEFT", 10, historyTop)
 historyHeader:SetText("History Retention:")
@@ -1525,11 +1688,20 @@ for _, days in ipairs(presetDays) do
 end
 
 settingsView:HookScript("OnShow", function()
-    InitializeLevelSlidersFromSettings()
     RefreshHistoryRetentionUI()
+    welcomeEnabledCB:SetChecked(settingsDB and settingsDB.autoWelcomeEnabled == true)
+    if settingsDB then
+        welcomeBox:SetText(settingsDB.welcomeTemplate or "")
+    end
+    UpdateWelcomePreview()
 end)
 
-settingsContent:SetHeight(560)
+filtersView:HookScript("OnShow", function()
+    InitializeLevelSlidersFromSettings()
+end)
+
+settingsContent:SetHeight(400)
+filtersContent:SetHeight(360)
 
 -- =============================================================
 -- 7. SCAN LOGIC (With Queue System)
@@ -1570,8 +1742,11 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
     local joinedName = string.match(msg, "^(.*) has joined the guild")
     if joinedName then
         historyDB[joinedName] = { action = "JOINED", time = time(), class = "PRIEST" }
-        if settingsDB.stats then settingsDB.stats.joined = (settingsDB.stats.joined or 0) + 1 end
+        if settingsDB and settingsDB.stats then settingsDB.stats.joined = (settingsDB.stats.joined or 0) + 1 end
         print("|cff00ff00[NoGuild]|r " .. joinedName .. " joined!")
+        if settingsDB and settingsDB.autoWelcomeEnabled then
+            SendDelayedWelcomeMessage(joinedName)
+        end
     end
 end)
 

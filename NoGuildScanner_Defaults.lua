@@ -23,6 +23,10 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.whisperTemplate then
         settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community while you continue your adventure leveling up?"
     end
+    if settingsDB.autoWelcomeEnabled == nil then settingsDB.autoWelcomeEnabled = false end
+    if not settingsDB.welcomeTemplate then
+        settingsDB.welcomeTemplate = "Welcome to <guild>, <character>!"
+    end
 end
 
 function NS.PruneHistory(historyDB, retentionDays)
