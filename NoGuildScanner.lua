@@ -1136,32 +1136,8 @@ local setHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNorm
 setHeader:SetPoint("TOPLEFT", 10, -10)
 setHeader:SetText("Scan Filters")
 
-local function CreateInput(parent, title, dbKey, defaultVal, yPos)
-    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("TOPLEFT", 10, yPos)
-    label:SetText(title)
-
-    local editBox = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-    editBox:SetSize(50, 20)
-    editBox:SetPoint("LEFT", label, "RIGHT", 10, 0)
-    editBox:SetAutoFocus(false)
-
-    editBox:SetScript("OnShow", function(self)
-        self:SetText(settingsDB[dbKey] or defaultVal)
-    end)
-
-    editBox:SetScript("OnTextChanged", function(self)
-        local val = tonumber(self:GetText())
-        if val then settingsDB[dbKey] = val end
-    end)
-
-    return editBox
-end
-
-local retentionBox = CreateInput(settingsContent, "History Days:", "historyRetentionDays", 1, -40)
-
 local whisperLabel = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-whisperLabel:SetPoint("TOPLEFT", 10, -70)
+whisperLabel:SetPoint("TOPLEFT", 10, -38)
 whisperLabel:SetText("Whisper Template:")
 
 local whisperHelpBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
@@ -1195,8 +1171,8 @@ end)
 whisperHelpBtn:SetScript("OnLeave", GameTooltip_Hide)
 
 local whisperBoxFrame = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
-whisperBoxFrame:SetPoint("TOPLEFT", 10, -106)
-whisperBoxFrame:SetSize(430, 90)
+whisperBoxFrame:SetPoint("TOPLEFT", 10, -68)
+whisperBoxFrame:SetSize(430, 76)
 whisperBoxFrame:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -1216,13 +1192,13 @@ whisperBox:SetMaxLetters(500)
 whisperBox:SetFontObject("GameFontHighlight")
 
 local whisperPreview = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-whisperPreview:SetPoint("TOPLEFT", 10, -202)
+whisperPreview:SetPoint("TOPLEFT", 10, -148)
 whisperPreview:SetWidth(430)
 whisperPreview:SetJustifyH("LEFT")
 whisperPreview:SetJustifyV("TOP")
 
 local whisperCount = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-whisperCount:SetPoint("TOPLEFT", 10, -84)
+whisperCount:SetPoint("TOPLEFT", 10, -52)
 whisperCount:SetWidth(430)
 whisperCount:SetJustifyH("LEFT")
 
@@ -1262,178 +1238,20 @@ whisperBox:SetScript("OnTextChanged", function(self)
     UpdateWhisperPreview()
 end)
 
--- Level Section
-local levelHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-levelHeader:SetPoint("TOPLEFT", 10, -271)
-levelHeader:SetText("Level Range:")
-
-local levelRangeValue = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-levelRangeValue:SetPoint("TOPLEFT", 10, -291)
-levelRangeValue:SetText("Selected: 1 - " .. MAX_PLAYER_LEVEL)
-
-local minLevelSlider = CreateFrame("Slider", "NoGuildMinLevelSlider", settingsContent, "OptionsSliderTemplate")
-minLevelSlider:SetPoint("TOPLEFT", 10, -318)
-minLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
-minLevelSlider:SetValueStep(1)
-minLevelSlider:SetObeyStepOnDrag(true)
-minLevelSlider:SetWidth(280)
-minLevelSlider:SetHeight(24)
-_G[minLevelSlider:GetName() .. "Low"]:SetText("1")
-_G[minLevelSlider:GetName() .. "High"]:SetText(tostring(MAX_PLAYER_LEVEL))
-_G[minLevelSlider:GetName() .. "Text"]:SetText("Min Level")
-minLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-minLevelSlider:GetThumbTexture():SetSize(18, 26)
-
-local maxLevelSlider = CreateFrame("Slider", "NoGuildMaxLevelSlider", settingsContent, "OptionsSliderTemplate")
-maxLevelSlider:SetPoint("TOPLEFT", 10, -358)
-maxLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
-maxLevelSlider:SetValueStep(1)
-maxLevelSlider:SetObeyStepOnDrag(true)
-maxLevelSlider:SetWidth(280)
-maxLevelSlider:SetHeight(24)
-_G[maxLevelSlider:GetName() .. "Low"]:SetText("1")
-_G[maxLevelSlider:GetName() .. "High"]:SetText(tostring(MAX_PLAYER_LEVEL))
-_G[maxLevelSlider:GetName() .. "Text"]:SetText("Max Level")
-maxLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-maxLevelSlider:GetThumbTexture():SetSize(18, 26)
-
-local function CreateSliderTrack(slider, r, g, b)
-    local trackBG = slider:CreateTexture(nil, "BACKGROUND")
-    trackBG:SetPoint("LEFT", slider, "LEFT", 8, 0)
-    trackBG:SetPoint("RIGHT", slider, "RIGHT", -8, 0)
-    trackBG:SetHeight(8)
-    trackBG:SetColorTexture(0.08, 0.08, 0.08, 0.85)
-
-    local trackFill = slider:CreateTexture(nil, "ARTWORK")
-    trackFill:SetPoint("LEFT", slider, "LEFT", 8, 0)
-    trackFill:SetPoint("RIGHT", slider, "RIGHT", -8, 0)
-    trackFill:SetHeight(4)
-    trackFill:SetColorTexture(r, g, b, 0.9)
-end
-
-CreateSliderTrack(minLevelSlider, 0.2, 0.8, 0.2)
-CreateSliderTrack(maxLevelSlider, 0.9, 0.7, 0.2)
-
-local function CreateLevelBadge(anchorSlider)
-    local badge = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
-    badge:SetSize(52, 22)
-    badge:SetPoint("LEFT", anchorSlider, "RIGHT", 14, 0)
-    badge:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 }
-    })
-
-    local text = badge:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetPoint("CENTER", 0, 0)
-    text:SetTextColor(1, 0.92, 0.45)
-    return text
-end
-
-local minLevelValue = CreateLevelBadge(minLevelSlider)
-local maxLevelValue = CreateLevelBadge(maxLevelSlider)
-
-local syncingLevelSliders = false
-local function SyncLevelRangeUI(changed)
-    if not settingsDB then return end
-
-    local minVal = math.floor((minLevelSlider:GetValue() or 1) + 0.5)
-    local maxVal = math.floor((maxLevelSlider:GetValue() or MAX_PLAYER_LEVEL) + 0.5)
-
-    if changed == "min" and minVal > maxVal then
-        maxVal = minVal
-        syncingLevelSliders = true
-        maxLevelSlider:SetValue(maxVal)
-        syncingLevelSliders = false
-    elseif changed == "max" and maxVal < minVal then
-        minVal = maxVal
-        syncingLevelSliders = true
-        minLevelSlider:SetValue(minVal)
-        syncingLevelSliders = false
-    end
-
-    settingsDB.minLevel = minVal
-    settingsDB.maxLevel = maxVal
-    levelRangeValue:SetText(string.format("Selected: %d - %d", minVal, maxVal))
-    minLevelValue:SetText(tostring(minVal))
-    maxLevelValue:SetText(tostring(maxVal))
-end
-
-local function InitializeLevelSlidersFromSettings()
-    if not settingsDB then return end
-    syncingLevelSliders = true
-    minLevelSlider:SetValue(settingsDB.minLevel or 1)
-    maxLevelSlider:SetValue(settingsDB.maxLevel or MAX_PLAYER_LEVEL)
-    syncingLevelSliders = false
-    SyncLevelRangeUI()
-end
-
-minLevelSlider:SetScript("OnValueChanged", function()
-    if syncingLevelSliders then return end
-    SyncLevelRangeUI("min")
-end)
-
-maxLevelSlider:SetScript("OnValueChanged", function()
-    if syncingLevelSliders then return end
-    SyncLevelRangeUI("max")
-end)
-
-settingsView:HookScript("OnShow", InitializeLevelSlidersFromSettings)
-InitializeLevelSlidersFromSettings()
-
-local balLevelBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
-balLevelBtn:SetSize(220, 25)
-balLevelBtn:SetPoint("TOPLEFT", 20, -400)
-balLevelBtn:SetText("Balance Guild Level Distribution")
-balLevelBtn:SetScript("OnClick", function()
-    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
-
-    local counts = GetGuildLevelCounts()
-
-    -- Prepare list of all categories (even those with 0 count)
-    local catList = {}
-    for _, cat in ipairs(ZONE_CATEGORIES) do
-        if cat.min > 0 then
-            table.insert(catList, {
-                name = cat.name,
-                count = counts[cat.name] or 0,
-                min = cat.min,
-                max = cat.max
-            })
-        end
-    end
-    table.sort(catList, function(a,b) return a.count < b.count end)
-
-    -- Select bottom 3
-    local newMin, newMax = MAX_PLAYER_LEVEL, 1
-    local selectedNames = {}
-    for i=1, 3 do
-        if catList[i] then
-            if catList[i].min < newMin then newMin = catList[i].min end
-            if catList[i].max > newMax then newMax = catList[i].max end
-            table.insert(selectedNames, catList[i].name)
-        end
-    end
-
-    settingsDB.minLevel = newMin
-    settingsDB.maxLevel = newMax
-    InitializeLevelSlidersFromSettings()
-    print("|cff00ff00[NoGuild]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
-end)
-
+-- Class Section
 local classHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-classHeader:SetPoint("TOPLEFT", 10, -440)
+classHeader:SetPoint("TOPLEFT", 10, -188)
 classHeader:SetText("Included Classes:")
 
-local chkY = -460
-local chkX = 20
-
 local classCheckboxes = {}
+local classStartY = -208
+local classCols = {20, 160, 300}
 
 for i, cls in ipairs(CLASS_LIST) do
     local cb = CreateFrame("CheckButton", nil, settingsContent, "UICheckButtonTemplate")
-    cb:SetPoint("TOPLEFT", chkX, chkY)
+    local col = ((i - 1) % 3) + 1
+    local row = math.floor((i - 1) / 3)
+    cb:SetPoint("TOPLEFT", classCols[col], classStartY - (row * 24))
     cb:SetSize(24, 24)
 
     cb.text = cb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1452,19 +1270,14 @@ for i, cls in ipairs(CLASS_LIST) do
     cb:SetScript("OnClick", function(self)
         settingsDB.classes[cls] = self:GetChecked()
     end)
-
-    if i % 2 == 0 then
-        chkX = 20
-        chkY = chkY - 25
-    else
-        chkX = 180
-    end
 end
 
 -- Balance Button
 local balBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
 balBtn:SetSize(220, 25)
-balBtn:SetPoint("TOPLEFT", 20, chkY - 40) -- Adjusted position relative to end of checkboxes
+local classRows = math.floor((#CLASS_LIST + 2) / 3)
+local classBlockBottom = classStartY - ((classRows - 1) * 24) - 16
+balBtn:SetPoint("TOPLEFT", 20, classBlockBottom - 18)
 balBtn:SetText("Balance Guild Class Distribution")
 balBtn:SetScript("OnClick", function()
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
@@ -1492,7 +1305,231 @@ balBtn:SetScript("OnClick", function()
     print("|cff00ff00[NoGuild]|r Filters updated: Targeting 4 least popular classes.")
 end)
 
-settingsContent:SetHeight(math.abs(chkY - 100))
+-- Level Section (compact)
+local levelTop = classBlockBottom - 56
+local levelHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+levelHeader:SetPoint("TOPLEFT", 10, levelTop)
+levelHeader:SetText("Level Range:")
+
+local minGroup = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+minGroup:SetPoint("TOPLEFT", 10, levelTop - 20)
+minGroup:SetSize(206, 76)
+minGroup:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+minGroup:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+minGroup:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.9)
+
+local maxGroup = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+maxGroup:SetPoint("LEFT", minGroup, "RIGHT", 8, 0)
+maxGroup:SetSize(206, 76)
+maxGroup:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+maxGroup:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+maxGroup:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.9)
+
+local minLevelSlider = CreateFrame("Slider", "NoGuildMinLevelSlider", settingsContent, "OptionsSliderTemplate")
+minLevelSlider:SetPoint("TOPLEFT", minGroup, "TOPLEFT", 8, -22)
+minLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
+minLevelSlider:SetValueStep(1)
+minLevelSlider:SetObeyStepOnDrag(true)
+minLevelSlider:SetWidth(186)
+minLevelSlider:SetHeight(24)
+_G[minLevelSlider:GetName() .. "Low"]:SetText("1")
+_G[minLevelSlider:GetName() .. "High"]:SetText(tostring(MAX_PLAYER_LEVEL))
+_G[minLevelSlider:GetName() .. "Text"]:SetText("Min")
+minLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+minLevelSlider:GetThumbTexture():SetSize(16, 24)
+
+local maxLevelSlider = CreateFrame("Slider", "NoGuildMaxLevelSlider", settingsContent, "OptionsSliderTemplate")
+maxLevelSlider:SetPoint("TOPLEFT", maxGroup, "TOPLEFT", 8, -22)
+maxLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
+maxLevelSlider:SetValueStep(1)
+maxLevelSlider:SetObeyStepOnDrag(true)
+maxLevelSlider:SetWidth(186)
+maxLevelSlider:SetHeight(24)
+_G[maxLevelSlider:GetName() .. "Low"]:SetText("1")
+_G[maxLevelSlider:GetName() .. "High"]:SetText(tostring(MAX_PLAYER_LEVEL))
+_G[maxLevelSlider:GetName() .. "Text"]:SetText("Max")
+maxLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+maxLevelSlider:GetThumbTexture():SetSize(16, 24)
+
+local function CreateSliderTrack(slider, r, g, b)
+    local trackBG = slider:CreateTexture(nil, "BACKGROUND")
+    trackBG:SetPoint("LEFT", slider, "LEFT", 8, 0)
+    trackBG:SetPoint("RIGHT", slider, "RIGHT", -8, 0)
+    trackBG:SetHeight(8)
+    trackBG:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+
+    local trackFill = slider:CreateTexture(nil, "ARTWORK")
+    trackFill:SetPoint("LEFT", slider, "LEFT", 8, 0)
+    trackFill:SetPoint("RIGHT", slider, "RIGHT", -8, 0)
+    trackFill:SetHeight(4)
+    trackFill:SetColorTexture(r, g, b, 0.95)
+end
+
+CreateSliderTrack(minLevelSlider, 0.2, 0.8, 0.2)
+CreateSliderTrack(maxLevelSlider, 0.9, 0.7, 0.2)
+
+local function CreateLevelBadge(anchorSlider)
+    local badge = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+    badge:SetSize(52, 20)
+    badge:SetPoint("TOP", anchorSlider, "BOTTOM", 0, -1)
+    badge:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    badge:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
+    badge:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.95)
+
+    local text = badge:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetPoint("CENTER", 0, 0)
+    text:SetTextColor(1, 0.92, 0.45)
+    return text
+end
+
+local minLevelValue = CreateLevelBadge(minLevelSlider)
+local maxLevelValue = CreateLevelBadge(maxLevelSlider)
+
+local syncingLevelSliders = false
+local function RefreshLevelRangeText(changed)
+    if not settingsDB then return end
+    local minVal = math.floor((minLevelSlider:GetValue() or 1) + 0.5)
+    local maxVal = math.floor((maxLevelSlider:GetValue() or MAX_PLAYER_LEVEL) + 0.5)
+
+    if changed == "min" and minVal > maxVal then
+        syncingLevelSliders = true
+        maxLevelSlider:SetValue(minVal)
+        syncingLevelSliders = false
+        maxVal = minVal
+    elseif changed == "max" and maxVal < minVal then
+        syncingLevelSliders = true
+        minLevelSlider:SetValue(maxVal)
+        syncingLevelSliders = false
+        minVal = maxVal
+    end
+
+    settingsDB.minLevel = minVal
+    settingsDB.maxLevel = maxVal
+    minLevelValue:SetText(tostring(minVal))
+    maxLevelValue:SetText(tostring(maxVal))
+end
+
+local function InitializeLevelSlidersFromSettings()
+    if not settingsDB then return end
+    syncingLevelSliders = true
+    minLevelSlider:SetValue(settingsDB.minLevel or 1)
+    maxLevelSlider:SetValue(settingsDB.maxLevel or MAX_PLAYER_LEVEL)
+    syncingLevelSliders = false
+    RefreshLevelRangeText()
+end
+
+minLevelSlider:SetScript("OnValueChanged", function()
+    if syncingLevelSliders then return end
+    RefreshLevelRangeText("min")
+end)
+
+maxLevelSlider:SetScript("OnValueChanged", function()
+    if syncingLevelSliders then return end
+    RefreshLevelRangeText("max")
+end)
+
+local balLevelBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+balLevelBtn:SetSize(220, 25)
+balLevelBtn:SetPoint("TOPLEFT", 20, levelTop - 104)
+balLevelBtn:SetText("Balance Guild Level Distribution")
+balLevelBtn:SetScript("OnClick", function()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
+
+    local counts = GetGuildLevelCounts()
+    local catList = {}
+    for _, cat in ipairs(ZONE_CATEGORIES) do
+        if cat.min > 0 then
+            table.insert(catList, {
+                name = cat.name,
+                count = counts[cat.name] or 0,
+                min = cat.min,
+                max = cat.max
+            })
+        end
+    end
+    table.sort(catList, function(a,b) return a.count < b.count end)
+
+    local newMin, newMax = MAX_PLAYER_LEVEL, 1
+    local selectedNames = {}
+    for i=1, 3 do
+        if catList[i] then
+            if catList[i].min < newMin then newMin = catList[i].min end
+            if catList[i].max > newMax then newMax = catList[i].max end
+            table.insert(selectedNames, catList[i].name)
+        end
+    end
+
+    settingsDB.minLevel = newMin
+    settingsDB.maxLevel = newMax
+    InitializeLevelSlidersFromSettings()
+    print("|cff00ff00[NoGuild]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
+end)
+
+-- History Retention (revamped)
+local historyTop = levelTop - 146
+local historyHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+historyHeader:SetPoint("TOPLEFT", 10, historyTop)
+historyHeader:SetText("History Retention:")
+
+local historyInfo = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+historyInfo:SetPoint("TOPLEFT", 10, historyTop - 18)
+historyInfo:SetText("Keep invite history for:")
+
+local historyValue = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+historyValue:SetPoint("LEFT", historyInfo, "RIGHT", 8, 0)
+
+local historyPresetButtons = {}
+local function RefreshHistoryRetentionUI()
+    if not settingsDB then return end
+    local days = tonumber(settingsDB.historyRetentionDays) or 1
+    settingsDB.historyRetentionDays = days
+    historyValue:SetText(days .. " day" .. (days == 1 and "" or "s"))
+    for _, b in ipairs(historyPresetButtons) do
+        b:SetEnabled(b.days ~= days)
+    end
+end
+
+local presetDays = {1, 3, 5, 7}
+local prev
+for _, days in ipairs(presetDays) do
+    local b = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+    b:SetSize(44, 20)
+    if prev then
+        b:SetPoint("TOPLEFT", prev, "TOPRIGHT", 4, 0)
+    else
+        b:SetPoint("TOPLEFT", 10, historyTop - 40)
+    end
+    b:SetText(tostring(days))
+    b.days = days
+    b:SetScript("OnClick", function()
+        settingsDB.historyRetentionDays = days
+        RefreshHistoryRetentionUI()
+    end)
+    table.insert(historyPresetButtons, b)
+    prev = b
+end
+
+settingsView:HookScript("OnShow", function()
+    InitializeLevelSlidersFromSettings()
+    RefreshHistoryRetentionUI()
+end)
+
+settingsContent:SetHeight(560)
 
 -- =============================================================
 -- 7. SCAN LOGIC (With Queue System)
