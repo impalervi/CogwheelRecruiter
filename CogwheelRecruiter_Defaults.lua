@@ -2,10 +2,10 @@ local addonName, NS = ...
 NS = NS or {}
 
 function NS.EnsureDatabases()
-    if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
-    if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
-    if NoGuildWhispersDB == nil then NoGuildWhispersDB = {} end
-    return NoGuildHistoryDB, NoGuildSettingsDB, NoGuildWhispersDB
+    if CogwheelRecruiterHistoryDB == nil then CogwheelRecruiterHistoryDB = {} end
+    if CogwheelRecruiterSettingsDB == nil then CogwheelRecruiterSettingsDB = {} end
+    if CogwheelRecruiterWhispersDB == nil then CogwheelRecruiterWhispersDB = {} end
+    return CogwheelRecruiterHistoryDB, CogwheelRecruiterSettingsDB, CogwheelRecruiterWhispersDB
 end
 
 function NS.ApplyDefaultSettings(settingsDB, classList)
@@ -38,3 +38,4 @@ function NS.PruneHistory(historyDB, retentionDays)
         end
     end
 end
+

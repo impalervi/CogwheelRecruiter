@@ -1,0 +1,13 @@
+## Interface: 110207,120000,120001,11508,20505,50503
+## Title: Cogwheel Recruiter
+## Notes: Recruit new guild members with smart filters and personalized outreach.
+## IconTexture: Interface\AddOns\CogwheelRecruiter\Media\CogwheelRecruiterIcon_64x64
+## Author: ImpalerV (Marviy @ Nightslayer)
+## Version: 1.0
+## SavedVariables: CogwheelRecruiterHistoryDB, CogwheelRecruiterSettingsDB, CogwheelRecruiterWhispersDB
+
+CogwheelRecruiter_Constants.lua
+CogwheelRecruiter_Defaults.lua
+CogwheelRecruiter.lua
+
+

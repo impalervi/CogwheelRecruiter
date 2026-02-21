@@ -4,17 +4,20 @@
 local addonName, NS = ...
 NS = NS or {}
 
-addonName = addonName or "NoGuildScanner"
-local historyDB -- Shortcut to NoGuildHistoryDB
-local settingsDB -- Shortcut to NoGuildSettingsDB
-local whispersDB -- Shortcut to NoGuildWhispersDB
+addonName = addonName or "CogwheelRecruiter"
+local historyDB -- Shortcut to CogwheelRecruiterHistoryDB
+local settingsDB -- Shortcut to CogwheelRecruiterSettingsDB
+local whispersDB -- Shortcut to CogwheelRecruiterWhispersDB
 local UpdateMinimapPosition -- Forward declaration
 local UpdateWhispersList -- Forward declaration
 local UpdateTabButtons -- Forward declaration
 local StartWhispersTabFlash -- Forward declaration
-local StopWhispersTabFlash -- Forward declaration
+local SetTab -- Forward declaration
+local SetWelcomeMode -- Forward declaration
+local currentTab -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
+local ACTIVE_MEMBER_WINDOW_DAYS = 7
 
 local function GetAddonMeta(name, key)
     if C_AddOns and C_AddOns.GetAddOnMetadata then
@@ -29,19 +32,31 @@ end
 local ADDON_TITLE = GetAddonMeta(addonName, "Title") or addonName
 local ADDON_VERSION = GetAddonMeta(addonName, "Version") or "dev"
 local ADDON_AUTHOR = "ImpalerV (Marviy @ Nightslayer)"
+local ADDON_NOTES = GetAddonMeta(addonName, "Notes") or "Recruit new guild members with smart filters and personalized outreach."
+local WELCOME_NOTES_DISPLAY = ADDON_NOTES:gsub(" and personalized outreach%.?", " and\npersonalized outreach")
 local COLOR_HEADER_GOLD = "|cffFFD100"
 local COLOR_FOOTER_GOLD = "|cffC89B3C"
 local COLOR_DARK_RED = "|cff7A1F1F"
 local COLOR_DARK_MAGE = "|cff2A86A0"
 local COLOR_RESET = "|r"
 
+local SPLASH_LOGO_CANDIDATES = {
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogoSimple_400x400.blp",
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogoSimple_400x400.tga",
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogoSimple_400x400.png",
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.blp",
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.tga",
+    "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.png",
+}
+local DEBUG_ALWAYS_SHOW_WELCOME = true -- Temporary debug toggle: force welcome on every open
+
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID"
 }
 
--- Create Main Window (custom, Attune-like framed container)
-local mainFrame = CreateFrame("Frame", "NoGuildFrame", UIParent, "BackdropTemplate")
+-- Create Main Window (custom framed container)
+local mainFrame = CreateFrame("Frame", "CogwheelRecruiterFrame", UIParent, "BackdropTemplate")
 mainFrame:SetSize(520, 550)
 mainFrame:SetPoint("CENTER")
 mainFrame:SetMovable(true)
@@ -121,6 +136,145 @@ footerText:SetText(string.format(
     coloredAuthor
 ))
 
+local function PlayerCanInviteGuildMembers()
+    if C_GuildInfo and C_GuildInfo.CanInvite then
+        return C_GuildInfo.CanInvite()
+    end
+    if CanGuildInvite then
+        return CanGuildInvite()
+    end
+    if IsGuildLeader then
+        return IsGuildLeader()
+    end
+    return false
+end
+
+local welcomeFrame = CreateFrame("Frame", nil, mainFrame)
+welcomeFrame:SetPoint("TOPLEFT", 10, -60)
+welcomeFrame:SetPoint("BOTTOMRIGHT", -10, 58)
+welcomeFrame:Hide()
+
+local welcomeContent = welcomeFrame
+local welcomeLogo = welcomeContent:CreateTexture(nil, "ARTWORK")
+welcomeLogo:SetSize(260, 260)
+welcomeLogo:SetPoint("TOP", 0, -20)
+
+local function SetWelcomeLogoTexture()
+    for _, path in ipairs(SPLASH_LOGO_CANDIDATES) do
+        welcomeLogo:SetTexture(path)
+        if welcomeLogo:GetTexture() then
+            return true
+        end
+    end
+    welcomeLogo:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
+    return false
+end
+SetWelcomeLogoTexture()
+
+local welcomeTitle = welcomeContent:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+welcomeTitle:SetPoint("TOP", welcomeLogo, "BOTTOM", 0, -6)
+welcomeTitle:SetText(COLOR_HEADER_GOLD .. "Cogwheel Recruiter" .. COLOR_RESET)
+
+local welcomeMeta = welcomeContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+welcomeMeta:SetPoint("TOP", welcomeTitle, "BOTTOM", 0, -8)
+welcomeMeta:SetText(string.format("%sVersion:%s %sv%s%s    %sAuthor:%s %s",
+    COLOR_FOOTER_GOLD, COLOR_RESET,
+    COLOR_DARK_RED, ADDON_VERSION, COLOR_RESET,
+    COLOR_FOOTER_GOLD, COLOR_RESET,
+    coloredAuthor
+))
+
+local welcomeStatus = welcomeContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+welcomeStatus:SetPoint("TOP", welcomeMeta, "BOTTOM", 0, -16)
+welcomeStatus:SetWidth(420)
+welcomeStatus:SetJustifyH("CENTER")
+
+local welcomeStartBtn = CreateFrame("Button", nil, welcomeContent, "UIPanelButtonTemplate")
+welcomeStartBtn:SetSize(320, 36)
+welcomeStartBtn:SetPoint("BOTTOM", welcomeContent, "BOTTOM", 0, 26)
+welcomeStartBtn:SetText("Start Scanning")
+welcomeStartBtn:SetNormalFontObject("GameFontNormalLarge")
+welcomeStartBtn:SetHighlightFontObject("GameFontNormalLarge")
+welcomeStartBtn:SetDisabledFontObject("GameFontDisable")
+
+local function ShowMainAddonWindow(forceScanner)
+    mainFrame:Show()
+    if SetWelcomeMode then
+        SetWelcomeMode(false)
+    else
+        welcomeFrame:Hide()
+    end
+
+    if forceScanner then
+        SetTab(1)
+    else
+        SetTab(currentTab or 1)
+    end
+end
+
+local function UpdateWelcomeState(forceScanner)
+    if not settingsDB then return end
+
+    local guildName = GetGuildInfo("player")
+    local hasGuild = guildName ~= nil and guildName ~= ""
+    local canInvite = hasGuild and PlayerCanInviteGuildMembers()
+    local firstLaunch = DEBUG_ALWAYS_SHOW_WELCOME or settingsDB.splashSeen ~= true
+    local blocked = (not hasGuild) or (not canInvite)
+
+    if blocked or firstLaunch then
+        mainFrame:Show()
+        if SetWelcomeMode then
+            SetWelcomeMode(true)
+        else
+            welcomeFrame:Show()
+        end
+        if not hasGuild then
+            welcomeStartBtn:SetText("You Don't Currently Have A Guild")
+            welcomeStartBtn:Disable()
+            welcomeStatus:SetText("|cffff6666You need to be in a guild to use Cogwheel Recruiter.|r")
+        elseif not canInvite then
+            welcomeStartBtn:SetText("You Can Not Invite Members To Your Guild")
+            welcomeStartBtn:Disable()
+            welcomeStatus:SetText("|cffff6666Your current guild rank does not have invite permissions.|r")
+        else
+            welcomeStartBtn:SetText("Start Scanning")
+            welcomeStartBtn:Enable()
+            welcomeStatus:SetText(WELCOME_NOTES_DISPLAY)
+        end
+    else
+        ShowMainAddonWindow(forceScanner)
+    end
+end
+
+welcomeStartBtn:SetScript("OnClick", function()
+    local guildName = GetGuildInfo("player")
+    local hasGuild = guildName ~= nil and guildName ~= ""
+    if not hasGuild or not PlayerCanInviteGuildMembers() then
+        UpdateWelcomeState(true)
+        return
+    end
+
+    settingsDB.splashSeen = true
+    ShowMainAddonWindow(true)
+end)
+
+local function ShowAddonWindow(forceScanner)
+    if settingsDB then
+        UpdateWelcomeState(forceScanner)
+    else
+        ShowMainAddonWindow(forceScanner)
+    end
+end
+
+local function ToggleAddonWindow()
+    if mainFrame:IsShown() or welcomeFrame:IsShown() then
+        mainFrame:Hide()
+        welcomeFrame:Hide()
+    else
+        ShowAddonWindow(false)
+    end
+end
+
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
@@ -128,12 +282,12 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if NS.EnsureDatabases then
             historyDB, settingsDB, whispersDB = NS.EnsureDatabases()
         else
-            if NoGuildHistoryDB == nil then NoGuildHistoryDB = {} end
-            if NoGuildSettingsDB == nil then NoGuildSettingsDB = {} end
-            if NoGuildWhispersDB == nil then NoGuildWhispersDB = {} end
-            historyDB = NoGuildHistoryDB
-            settingsDB = NoGuildSettingsDB
-            whispersDB = NoGuildWhispersDB
+            if CogwheelRecruiterHistoryDB == nil then CogwheelRecruiterHistoryDB = {} end
+            if CogwheelRecruiterSettingsDB == nil then CogwheelRecruiterSettingsDB = {} end
+            if CogwheelRecruiterWhispersDB == nil then CogwheelRecruiterWhispersDB = {} end
+            historyDB = CogwheelRecruiterHistoryDB
+            settingsDB = CogwheelRecruiterSettingsDB
+            whispersDB = CogwheelRecruiterWhispersDB
         end
 
         if NS.ApplyDefaultSettings then
@@ -268,7 +422,7 @@ local function SendDelayedWelcomeMessage(targetName)
 
         local welcomeMsg = BuildWelcomeMessage(targetName)
         if string.len(welcomeMsg) > MAX_WHISPER_CHARS then
-            print(string.format("|cffff0000[NoGuild]|r Welcome message too long (%d/%d). Shorten it in Settings.", string.len(welcomeMsg), MAX_WHISPER_CHARS))
+            print(string.format("|cffff0000[Cogwheel]|r Welcome message too long (%d/%d). Shorten it in Settings.", string.len(welcomeMsg), MAX_WHISPER_CHARS))
             return
         end
 
@@ -283,7 +437,7 @@ end
 local function SendWhisperToPlayer(targetName, targetClass)
     local msg = BuildWhisperMessage(targetName, targetClass)
     if string.len(msg) > MAX_WHISPER_CHARS then
-        print(string.format("|cffff0000[NoGuild]|r Whisper too long (%d/%d). Shorten your template in Settings.", string.len(msg), MAX_WHISPER_CHARS))
+        print(string.format("|cffff0000[Cogwheel]|r Whisper too long (%d/%d). Shorten your template in Settings.", string.len(msg), MAX_WHISPER_CHARS))
         return false
     end
 
@@ -306,7 +460,7 @@ end
 -- =============================================================
 -- 3. TABS SETUP
 -- =============================================================
-local currentTab = 1
+currentTab = 1
 local scanRows = {}
 
 local scanView = CreateFrame("Frame", nil, mainFrame)
@@ -338,13 +492,13 @@ whispersView:Hide()
 
 local gsTitle = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 gsTitle:SetPoint("TOPLEFT", 20, -15)
-gsTitle:SetText("Active Guild Members (Last 7 Days)")
+gsTitle:SetText(string.format("Active Guild Members (Last %d Days)", ACTIVE_MEMBER_WINDOW_DAYS))
 
 -- Dropdowns for Stats
 local currentStatsMode = "CLASS" -- "CLASS" or "LEVEL"
 local currentVisMode = "BAR" -- "MOSAIC" or "BAR"
 
-local statsTypeDD = CreateFrame("Frame", "NoGuildStatsTypeDD", guildStatsView, "UIDropDownMenuTemplate")
+local statsTypeDD = CreateFrame("Frame", "CogwheelRecruiterStatsTypeDD", guildStatsView, "UIDropDownMenuTemplate")
 statsTypeDD:SetPoint("TOPLEFT", 0, -35)
 UIDropDownMenu_SetWidth(statsTypeDD, 100)
 UIDropDownMenu_Initialize(statsTypeDD, function(self, level)
@@ -361,7 +515,7 @@ UIDropDownMenu_Initialize(statsTypeDD, function(self, level)
 end)
 UIDropDownMenu_SetText(statsTypeDD, "By Class")
 
-local statsVisDD = CreateFrame("Frame", "NoGuildStatsVisDD", guildStatsView, "UIDropDownMenuTemplate")
+local statsVisDD = CreateFrame("Frame", "CogwheelRecruiterStatsVisDD", guildStatsView, "UIDropDownMenuTemplate")
 statsVisDD:SetPoint("LEFT", statsTypeDD, "RIGHT", -20, 0)
 UIDropDownMenu_SetWidth(statsVisDD, 120)
 UIDropDownMenu_Initialize(statsVisDD, function(self, level)
@@ -380,7 +534,7 @@ UIDropDownMenu_SetText(statsVisDD, "Stacked Bar")
 
 local gsContainer = CreateFrame("Frame", nil, guildStatsView)
 gsContainer:SetPoint("TOPLEFT", 20, -80)
-gsContainer:SetPoint("BOTTOMRIGHT", -20, 20)
+gsContainer:SetPoint("BOTTOMRIGHT", -20, 48)
 
 -- Helper: Get Class Counts (Shared by Stats and Settings)
 local function GetGuildClassCounts()
@@ -394,7 +548,7 @@ local function GetGuildClassCounts()
             local active = online
             if not active then
                 local y, m, d = GetGuildRosterLastOnline(i)
-                if y and (y == 0 and m == 0 and d <= 7) then active = true end
+                if y and (y == 0 and m == 0 and d <= ACTIVE_MEMBER_WINDOW_DAYS) then active = true end
             end
 
             if active and classFileName then
@@ -418,7 +572,7 @@ local function GetGuildLevelCounts()
             local active = online
             if not active then
                 local y, m, d = GetGuildRosterLastOnline(i)
-                if y and (y == 0 and m == 0 and d <= 7) then active = true end
+                if y and (y == 0 and m == 0 and d <= ACTIVE_MEMBER_WINDOW_DAYS) then active = true end
             end
 
             if active and level then
@@ -445,6 +599,87 @@ end
 local gsSquares = {}
 local gsLegend = {}
 local gsStackSegments = {}
+local function SendGuildReportLine(msg)
+    if not msg or msg == "" then return end
+    if C_ChatInfo and C_ChatInfo.SendChatMessage then
+        C_ChatInfo.SendChatMessage(msg, "GUILD")
+    else
+        SendChatMessage(msg, "GUILD")
+    end
+end
+
+local function BuildDistributionLines(header, segments)
+    local lines = { header }
+    if #segments == 0 then
+        table.insert(lines, string.format("No active members found in the past %d days.", ACTIVE_MEMBER_WINDOW_DAYS))
+        return lines
+    end
+
+    local maxLen = 240
+    local current = ""
+    for _, seg in ipairs(segments) do
+        if current == "" then
+            current = seg
+        elseif string.len(current) + 2 + string.len(seg) <= maxLen then
+            current = current .. "; " .. seg
+        else
+            table.insert(lines, current)
+            current = seg
+        end
+    end
+
+    if current ~= "" then
+        table.insert(lines, current)
+    end
+
+    return lines
+end
+
+local function SendDistributionReportToGuild(header, segments)
+    local lines = BuildDistributionLines(header, segments)
+    for _, line in ipairs(lines) do
+        SendGuildReportLine(line)
+    end
+end
+
+local function BuildClassDistributionSegments()
+    local counts, total = GetGuildClassCounts()
+    local sorted = {}
+    for cls, count in pairs(counts) do
+        table.insert(sorted, { cls = cls, count = count })
+    end
+    table.sort(sorted, function(a, b) return a.count > b.count end)
+
+    local segments = {}
+    for _, item in ipairs(sorted) do
+        local label = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[item.cls]) or (item.cls:sub(1, 1) .. item.cls:sub(2):lower())
+        local pct = (total > 0) and math.floor((item.count / total) * 100 + 0.5) or 0
+        table.insert(segments, string.format("%s: %d (%d%%)", label, item.count, pct))
+    end
+
+    return segments, total
+end
+
+local function BuildLevelDistributionSegments()
+    local counts, total = GetGuildLevelCounts()
+    local segments = {}
+
+    for _, cat in ipairs(ZONE_CATEGORIES) do
+        if cat.min and cat.max and cat.min > 0 then
+            local count = counts[cat.name] or 0
+            local pct = (total > 0) and math.floor((count / total) * 100 + 0.5) or 0
+            table.insert(segments, string.format("%s: %d (%d%%)", cat.name, count, pct))
+        end
+    end
+
+    local otherCount = counts["Other"] or 0
+    if otherCount > 0 then
+        local pct = (total > 0) and math.floor((otherCount / total) * 100 + 0.5) or 0
+        table.insert(segments, string.format("Other: %d (%d%%)", otherCount, pct))
+    end
+
+    return segments, total
+end
 
 UpdateGuildStats = function()
     if not guildStatsView:IsVisible() then return end
@@ -574,6 +809,40 @@ end
 
 guildStatsView:RegisterEvent("GUILD_ROSTER_UPDATE")
 guildStatsView:SetScript("OnEvent", UpdateGuildStats)
+local reportButtonsRow = CreateFrame("Frame", nil, guildStatsView)
+reportButtonsRow:SetSize(350, 22)
+reportButtonsRow:SetPoint("BOTTOM", guildStatsView, "BOTTOM", 0, 12)
+
+local reportWarning = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+reportWarning:SetPoint("BOTTOM", reportButtonsRow, "TOP", 0, 6)
+reportWarning:SetText("Warning: These will report to guild chat")
+reportWarning:SetTextColor(0.25, 1.0, 0.25)
+
+local reportClassBtn = CreateFrame("Button", nil, guildStatsView, "UIPanelButtonTemplate")
+reportClassBtn:SetSize(170, 22)
+reportClassBtn:SetPoint("LEFT", reportButtonsRow, "LEFT", 0, 0)
+reportClassBtn:SetText("Report Class Stats")
+reportClassBtn:SetScript("OnClick", function()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
+
+    local segments = BuildClassDistributionSegments()
+    local header = string.format("Guild Class Distribution (Based on members active for the past %d days)", ACTIVE_MEMBER_WINDOW_DAYS)
+    SendDistributionReportToGuild(header, segments)
+    print("|cff00ff00[Cogwheel]|r Class distribution posted to guild chat.")
+end)
+
+local reportLevelBtn = CreateFrame("Button", nil, guildStatsView, "UIPanelButtonTemplate")
+reportLevelBtn:SetSize(170, 22)
+reportLevelBtn:SetPoint("LEFT", reportClassBtn, "RIGHT", 10, 0)
+reportLevelBtn:SetText("Report Level Stats")
+reportLevelBtn:SetScript("OnClick", function()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() elseif GuildRoster then GuildRoster() end
+
+    local segments = BuildLevelDistributionSegments()
+    local header = string.format("Guild Level Distribution (Based on members active for the past %d days)", ACTIVE_MEMBER_WINDOW_DAYS)
+    SendDistributionReportToGuild(header, segments)
+    print("|cff00ff00[Cogwheel]|r Level distribution posted to guild chat.")
+end)
 
 local statInvitedText, statJoinedText
 
@@ -594,7 +863,7 @@ local function UpdateStatsView()
     statJoinedText:SetText("Total Joined: " .. (settingsDB.stats.joined or 0))
 end
 
-local function SetTab(id)
+SetTab = function(id)
     currentTab = id
     scanView:Hide()
     historyView:Hide()
@@ -710,6 +979,39 @@ local btnGuild = CreateAuxTabButton(btnStats, "Guild", 5)
 local btnSettings = CreateAuxTabButton(btnGuild, "Settings", 3)
 local btnHistory = auxStart
 
+SetWelcomeMode = function(enabled)
+    if enabled then
+        contentPanel:Hide()
+        footerFrame:Hide()
+        tab1:Hide()
+        tab6:Hide()
+        auxStart:Hide()
+        btnStats:Hide()
+        btnGuild:Hide()
+        btnSettings:Hide()
+
+        scanView:Hide()
+        historyView:Hide()
+        settingsView:Hide()
+        filtersView:Hide()
+        statsView:Hide()
+        guildStatsView:Hide()
+        whispersView:Hide()
+
+        welcomeFrame:Show()
+    else
+        contentPanel:Show()
+        footerFrame:Show()
+        tab1:Show()
+        tab6:Show()
+        auxStart:Show()
+        btnStats:Show()
+        btnGuild:Show()
+        btnSettings:Show()
+        welcomeFrame:Hide()
+    end
+end
+
 UpdateTabButtons = function()
     local primaryActive = {
         [1] = tab1,
@@ -758,7 +1060,7 @@ targetUI:SetPoint("BOTTOM", 0, 0)
 local ddLabel = targetUI:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 ddLabel:SetText("Select Zone to Scan:")
 
-local zoneDropDown = CreateFrame("Frame", "NoGuildSpecificDropDown", targetUI, "UIDropDownMenuTemplate")
+local zoneDropDown = CreateFrame("Frame", "CogwheelRecruiterSpecificDropDown", targetUI, "UIDropDownMenuTemplate")
 UIDropDownMenu_SetWidth(zoneDropDown, 150)
 UIDropDownMenu_SetText(zoneDropDown, "Select a Zone...")
 
@@ -853,6 +1155,13 @@ scanScroll:SetPoint("BOTTOMRIGHT", -25, 85)
 local scanContent = CreateFrame("Frame", nil, scanScroll)
 scanContent:SetSize(460, 1)
 scanScroll:SetScrollChild(scanContent)
+
+local scanResultsWatermark = scanView:CreateTexture(nil, "BACKGROUND")
+scanResultsWatermark:SetPoint("CENTER", scanScroll, "CENTER", 5, 0)
+scanResultsWatermark:SetSize(280, 280)
+scanResultsWatermark:SetTexture("Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogoSimple_400x400")
+scanResultsWatermark:SetAlpha(0.08)
+if scanResultsWatermark.SetDesaturated then scanResultsWatermark:SetDesaturated(true) end
 
 -- Helper: Create Row
 local function CreateBaseRow(parent, isHistory)
@@ -981,7 +1290,7 @@ local function UpdateScanList(results)
                 if sent then
                     self:SetText("Whispered")
                     self:Disable()
-                    print("|cff00ff00[NoGuild]|r Whisper sent to " .. data.name)
+                    print("|cff00ff00[Cogwheel]|r Whisper sent to " .. data.name)
                 end
             end)
 
@@ -1039,8 +1348,8 @@ clearBtn:SetSize(140, 30)
 clearBtn:SetPoint("BOTTOM", 0, 10)
 clearBtn:SetText("Clear All History")
 clearBtn:SetScript("OnClick", function()
-    NoGuildHistoryDB = {}
-    historyDB = NoGuildHistoryDB
+    CogwheelRecruiterHistoryDB = {}
+    historyDB = CogwheelRecruiterHistoryDB
     UpdateHistoryList()
     print("History Cleared.")
 end)
@@ -1557,7 +1866,7 @@ balBtn:SetScript("OnClick", function()
 
     local counts, total = GetGuildClassCounts()
     if total == 0 then
-        print("|cffff0000[NoGuild]|r No guild data found. Please open Guild Statistics tab first or wait for data.")
+        print("|cffff0000[Cogwheel]|r No guild data found. Please open Guild Statistics tab first or wait for data.")
         return
     end
 
@@ -1575,7 +1884,7 @@ balBtn:SetScript("OnClick", function()
 
     -- Update UI
     for cls, cb in pairs(classCheckboxes) do cb:SetChecked(settingsDB.classes[cls]) end
-    print("|cff00ff00[NoGuild]|r Filters updated: Targeting 4 least popular classes.")
+    print("|cff00ff00[Cogwheel]|r Filters updated: Targeting 4 least popular classes.")
 end)
 
 -- Level Section (compact)
@@ -1608,7 +1917,7 @@ maxGroup:SetBackdrop({
 maxGroup:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
 maxGroup:SetBackdropBorderColor(0.35, 0.35, 0.35, 0.9)
 
-local minLevelSlider = CreateFrame("Slider", "NoGuildMinLevelSlider", filtersContent, "OptionsSliderTemplate")
+local minLevelSlider = CreateFrame("Slider", "CogwheelRecruiterMinLevelSlider", filtersContent, "OptionsSliderTemplate")
 minLevelSlider:SetPoint("TOPLEFT", minGroup, "TOPLEFT", 8, -22)
 minLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
 minLevelSlider:SetValueStep(1)
@@ -1621,7 +1930,7 @@ _G[minLevelSlider:GetName() .. "Text"]:SetText("Min")
 minLevelSlider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
 minLevelSlider:GetThumbTexture():SetSize(16, 24)
 
-local maxLevelSlider = CreateFrame("Slider", "NoGuildMaxLevelSlider", filtersContent, "OptionsSliderTemplate")
+local maxLevelSlider = CreateFrame("Slider", "CogwheelRecruiterMaxLevelSlider", filtersContent, "OptionsSliderTemplate")
 maxLevelSlider:SetPoint("TOPLEFT", maxGroup, "TOPLEFT", 8, -22)
 maxLevelSlider:SetMinMaxValues(1, MAX_PLAYER_LEVEL)
 maxLevelSlider:SetValueStep(1)
@@ -1750,7 +2059,7 @@ balLevelBtn:SetScript("OnClick", function()
     settingsDB.minLevel = newMin
     settingsDB.maxLevel = newMax
     InitializeLevelSlidersFromSettings()
-    print("|cff00ff00[NoGuild]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
+    print("|cff00ff00[Cogwheel]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
 end)
 
 -- History Retention (revamped)
@@ -1847,7 +2156,7 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
     if declinedName and historyDB[declinedName] then
         historyDB[declinedName].action = "DECLINED"
         historyDB[declinedName].time = time()
-        print("|cffff0000[NoGuild]|r Detected decline: " .. declinedName)
+        print("|cffff0000[Cogwheel]|r Detected decline: " .. declinedName)
     end
 
     local joinedName = string.match(msg, "^(.*) has joined the guild")
@@ -1860,7 +2169,7 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
             level = existing.level
         }
         if settingsDB and settingsDB.stats then settingsDB.stats.joined = (settingsDB.stats.joined or 0) + 1 end
-        print("|cff00ff00[NoGuild]|r " .. joinedName .. " joined!")
+        print("|cff00ff00[Cogwheel]|r " .. joinedName .. " joined!")
         if settingsDB and settingsDB.autoWelcomeEnabled then
             SendDelayedWelcomeMessage(joinedName)
         end
@@ -1951,7 +2260,7 @@ whoListener:SetScript("OnEvent", function(self, event)
             if #scanQueue > 0 then
                 scanBtn:SetText("Scan Next: " .. scanQueue[1])
                 scanBtn:Enable()
-                print("|cff00ff00[NoGuild]|r Zone scanned. Click button to scan next zone.")
+                print("|cff00ff00[Cogwheel]|r Zone scanned. Click button to scan next zone.")
             else
                 isScanning = false
                 scanBtn:SetText("Start Scan")
@@ -1967,7 +2276,7 @@ whoListener:SetScript("OnEvent", function(self, event)
                         visibleCount = visibleCount + 1
                     end
                 end
-                print("|cff00ff00[NoGuild]|r Scan Complete. Found " .. #accumulatedResults .. " unguilded players (" .. visibleCount .. " visible).")
+                print("|cff00ff00[Cogwheel]|r Scan Complete. Found " .. #accumulatedResults .. " unguilded players (" .. visibleCount .. " visible).")
             end
         end)
     end
@@ -1978,7 +2287,7 @@ ProcessNextScan = function()
 
     -- Status Update
     scanBtn:SetText("Scanning...")
-    print("|cff00ff00[NoGuild]|r Scanning: " .. currentScanZone .. "...")
+    print("|cff00ff00[Cogwheel]|r Scanning: " .. currentScanZone .. "...")
 
     -- Unregister friend list events temporarily to avoid spam/interference
     if FriendsFrame then FriendsFrame:UnregisterEvent("WHO_LIST_UPDATE") end
@@ -1996,7 +2305,7 @@ ProcessNextScan = function()
     C_Timer.After(10.0, function()
         if isWaitingForWho then
             isWaitingForWho = false
-            print("|cffff0000[NoGuild]|r Scan timed out (server didn't respond). Resetting...")
+            print("|cffff0000[Cogwheel]|r Scan timed out (server didn't respond). Resetting...")
 
             whoListener:UnregisterEvent("WHO_LIST_UPDATE")
             whoListener:Hide()
@@ -2037,7 +2346,7 @@ end
 -- =============================================================
 -- 8. MINIMAP BUTTON
 -- =============================================================
-local minimapBtn = CreateFrame("Button", "NoGuildMinimapButton", Minimap)
+local minimapBtn = CreateFrame("Button", "CogwheelRecruiterMinimapButton", Minimap)
 minimapBtn:SetSize(32, 32)
 minimapBtn:SetFrameLevel(8)
 minimapBtn:SetPoint("CENTER", Minimap, "CENTER", -56, -56)
@@ -2049,7 +2358,7 @@ bg:SetSize(25, 25)
 bg:SetPoint("CENTER")
 
 local icon = minimapBtn:CreateTexture(nil, "ARTWORK")
-icon:SetTexture("Interface\\Icons\\INV_Misc_GroupNeedMore")
+icon:SetTexture("Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterIcon_64x64")
 icon:SetSize(20, 20)
 icon:SetPoint("CENTER")
 
@@ -2061,13 +2370,13 @@ border:SetPoint("TOPLEFT")
 minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 minimapBtn:SetScript("OnClick", function(self, button)
     if button == "LeftButton" then
-        if mainFrame:IsShown() then mainFrame:Hide() else mainFrame:Show() end
+        ToggleAddonWindow()
     end
 end)
 
 minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText("NoGuild Scanner")
+    GameTooltip:SetText("Cogwheel Recruiter")
     GameTooltip:AddLine("Left-click to toggle window", 1, 1, 1)
     GameTooltip:AddLine("Right-click to drag", 0.6, 0.6, 0.6)
     GameTooltip:Show()
@@ -2099,17 +2408,20 @@ minimapBtn:SetScript("OnDragStop", function(self)
     self:SetScript("OnUpdate", nil)
 end)
 
-SLASH_NOGUILD1 = "/noguild"
-SlashCmdList["NOGUILD"] = function(msg)
+SLASH_COGWHEELRECRUITER1 = "/cogwheel"
+SlashCmdList["COGWHEELRECRUITER"] = function(msg)
     if msg == "reset" then
-        NoGuildHistoryDB = {}
-        NoGuildWhispersDB = {}
-        historyDB = NoGuildHistoryDB
-        whispersDB = NoGuildWhispersDB
+        CogwheelRecruiterHistoryDB = {}
+        CogwheelRecruiterWhispersDB = {}
+        historyDB = CogwheelRecruiterHistoryDB
+        whispersDB = CogwheelRecruiterWhispersDB
         print("History and whispers cleared.")
         return
     end
 
-    mainFrame:Show()
-    SetTab(1)
+    ShowAddonWindow(true)
 end
+
+
+
+
