@@ -1156,6 +1156,13 @@ local scanContent = CreateFrame("Frame", nil, scanScroll)
 scanContent:SetSize(460, 1)
 scanScroll:SetScrollChild(scanContent)
 
+local scanResultsWatermark = scanView:CreateTexture(nil, "BACKGROUND")
+scanResultsWatermark:SetPoint("CENTER", scanScroll, "CENTER", 5, 0)
+scanResultsWatermark:SetSize(280, 280)
+scanResultsWatermark:SetTexture("Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogoSimple_400x400")
+scanResultsWatermark:SetAlpha(0.08)
+if scanResultsWatermark.SetDesaturated then scanResultsWatermark:SetDesaturated(true) end
+
 -- Helper: Create Row
 local function CreateBaseRow(parent, isHistory)
     local row = CreateFrame("Frame", nil, parent)
