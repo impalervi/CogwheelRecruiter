@@ -14,10 +14,12 @@ local UpdateTabButtons -- Forward declaration
 local StartWhispersTabFlash -- Forward declaration
 local SetTab -- Forward declaration
 local SetWelcomeMode -- Forward declaration
+local ApplyMainLayoutForTab -- Forward declaration
 local currentTab -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
 local ACTIVE_MEMBER_WINDOW_DAYS = 7
+local RECRUIT_PERMISSION_REQUIRED_TEXT = "Guild invite permission required."
 
 local function GetAddonMeta(name, key)
     if C_AddOns and C_AddOns.GetAddOnMetadata then
@@ -74,31 +76,52 @@ mainFrame:SetBackdropColor(0, 0, 0, 1)
 mainFrame:SetBackdropBorderColor(0.85, 0.85, 0.85, 1)
 mainFrame:Hide()
 
-local frameClose = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
-frameClose:SetPoint("TOPRIGHT", -2, -2)
+mainFrame.closeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
+mainFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
 
-local titleChip = CreateFrame("Frame", nil, mainFrame)
-titleChip:SetSize(250, 46)
-titleChip:ClearAllPoints()
-titleChip:SetPoint("TOP", mainFrame, "TOP", 0, 14)
-titleChip.center = titleChip:CreateTexture(nil, "ARTWORK")
-titleChip.center:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-titleChip.center:SetTexCoord(0.31, 0.67, 0, 0.63)
-titleChip.center:SetPoint("TOP", 0, 0)
-titleChip.center:SetSize(190, 42)
-titleChip.left = titleChip:CreateTexture(nil, "ARTWORK")
-titleChip.left:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-titleChip.left:SetTexCoord(0.21, 0.31, 0, 0.63)
-titleChip.left:SetPoint("RIGHT", titleChip.center, "LEFT", 0, 0)
-titleChip.left:SetSize(30, 42)
-titleChip.right = titleChip:CreateTexture(nil, "ARTWORK")
-titleChip.right:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-titleChip.right:SetTexCoord(0.67, 0.77, 0, 0.63)
-titleChip.right:SetPoint("LEFT", titleChip.center, "RIGHT", 0, 0)
-titleChip.right:SetSize(30, 42)
+mainFrame.quickModeBtn = CreateFrame("Button", nil, mainFrame)
+mainFrame.quickModeBtn:SetSize(32, 32)
+mainFrame.quickModeBtn:SetPoint("RIGHT", mainFrame.closeBtn, "LEFT", 10, 0)
+mainFrame.quickModeBtn:SetNormalTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
+mainFrame.quickModeBtn:SetPushedTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Down")
+local mainCloseHighlight = mainFrame.closeBtn:GetHighlightTexture()
+if mainCloseHighlight and mainCloseHighlight:GetTexture() then
+    mainFrame.quickModeBtn:SetHighlightTexture(mainCloseHighlight:GetTexture(), "ADD")
+else
+    mainFrame.quickModeBtn:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
+end
+mainFrame.quickModeBtn:SetScript("OnClick", function()
+    if SetTab then SetTab(8) end
+end)
+mainFrame.quickModeBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText("Switch To Quick Scanner", 1, 0.82, 0)
+    GameTooltip:Show()
+end)
+mainFrame.quickModeBtn:SetScript("OnLeave", GameTooltip_Hide)
 
-mainFrame.title = titleChip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-mainFrame.title:SetPoint("CENTER", titleChip.center, "CENTER", 0, 0)
+mainFrame.titleChip = CreateFrame("Frame", nil, mainFrame)
+mainFrame.titleChip:SetSize(250, 46)
+mainFrame.titleChip:ClearAllPoints()
+mainFrame.titleChip:SetPoint("TOP", mainFrame, "TOP", 0, 14)
+mainFrame.titleChip.center = mainFrame.titleChip:CreateTexture(nil, "ARTWORK")
+mainFrame.titleChip.center:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+mainFrame.titleChip.center:SetTexCoord(0.31, 0.67, 0, 0.63)
+mainFrame.titleChip.center:SetPoint("TOP", 0, 0)
+mainFrame.titleChip.center:SetSize(190, 42)
+mainFrame.titleChip.left = mainFrame.titleChip:CreateTexture(nil, "ARTWORK")
+mainFrame.titleChip.left:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+mainFrame.titleChip.left:SetTexCoord(0.21, 0.31, 0, 0.63)
+mainFrame.titleChip.left:SetPoint("RIGHT", mainFrame.titleChip.center, "LEFT", 0, 0)
+mainFrame.titleChip.left:SetSize(30, 42)
+mainFrame.titleChip.right = mainFrame.titleChip:CreateTexture(nil, "ARTWORK")
+mainFrame.titleChip.right:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+mainFrame.titleChip.right:SetTexCoord(0.67, 0.77, 0, 0.63)
+mainFrame.titleChip.right:SetPoint("LEFT", mainFrame.titleChip.center, "RIGHT", 0, 0)
+mainFrame.titleChip.right:SetSize(30, 42)
+
+mainFrame.title = mainFrame.titleChip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+mainFrame.title:SetPoint("CENTER", mainFrame.titleChip.center, "CENTER", 0, 0)
 mainFrame.title:SetText(COLOR_HEADER_GOLD .. ADDON_TITLE .. COLOR_RESET)
 
 local contentPanel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
@@ -126,17 +149,125 @@ footerFrame:SetBackdrop({
 footerFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.75)
 footerFrame:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.9)
 
-local footerText = footerFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-footerText:SetPoint("CENTER")
+footerFrame.text = footerFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+footerFrame.text:SetPoint("CENTER")
 local coloredAuthor = ADDON_AUTHOR:gsub("Marviy", COLOR_DARK_MAGE .. "Marviy" .. COLOR_RESET)
-footerText:SetText(string.format(
+footerFrame.text:SetText(string.format(
     "%s%s%s %sv%s%s | Author: %s",
     COLOR_FOOTER_GOLD, ADDON_TITLE, COLOR_RESET,
     COLOR_DARK_RED, ADDON_VERSION, COLOR_RESET,
     coloredAuthor
 ))
 
-local function PlayerCanInviteGuildMembers()
+
+local quickFrame = CreateFrame("Frame", "CogwheelRecruiterQuickFrame", UIParent, "BackdropTemplate")
+quickFrame:SetSize(320, 220)
+quickFrame:SetPoint("CENTER")
+quickFrame:SetMovable(true)
+quickFrame:EnableMouse(true)
+quickFrame:RegisterForDrag("LeftButton")
+quickFrame:SetScript("OnDragStart", quickFrame.StartMoving)
+quickFrame:SetScript("OnDragStop", quickFrame.StopMovingOrSizing)
+quickFrame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 8, right = 8, top = 8, bottom = 8 }
+})
+quickFrame:SetBackdropColor(0, 0, 0, 1)
+quickFrame:SetBackdropBorderColor(0.85, 0.85, 0.85, 1)
+quickFrame:Hide()
+
+quickFrame.closeBtn = CreateFrame("Button", nil, quickFrame, "UIPanelCloseButton")
+quickFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
+
+quickFrame.fullModeBtn = CreateFrame("Button", nil, quickFrame)
+quickFrame.fullModeBtn:SetSize(32, 32)
+quickFrame.fullModeBtn:SetPoint("RIGHT", quickFrame.closeBtn, "LEFT", 10, 0)
+quickFrame.fullModeBtn:SetNormalTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Up")
+quickFrame.fullModeBtn:SetPushedTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Down")
+local quickCloseHighlight = quickFrame.closeBtn:GetHighlightTexture()
+if quickCloseHighlight and quickCloseHighlight:GetTexture() then
+    quickFrame.fullModeBtn:SetHighlightTexture(quickCloseHighlight:GetTexture(), "ADD")
+else
+    quickFrame.fullModeBtn:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
+end
+quickFrame.fullModeBtn:SetScript("OnClick", function()
+    if SetTab then SetTab(1) end
+end)
+quickFrame.fullModeBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText("Switch To Full Scanner", 1, 0.82, 0)
+    GameTooltip:Show()
+end)
+quickFrame.fullModeBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+quickFrame.titleChip = CreateFrame("Frame", nil, quickFrame)
+quickFrame.titleChip:SetSize(210, 46)
+quickFrame.titleChip:ClearAllPoints()
+quickFrame.titleChip:SetPoint("TOP", quickFrame, "TOP", 0, 14)
+quickFrame.titleChip.center = quickFrame.titleChip:CreateTexture(nil, "ARTWORK")
+quickFrame.titleChip.center:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+quickFrame.titleChip.center:SetTexCoord(0.31, 0.67, 0, 0.63)
+quickFrame.titleChip.center:SetPoint("TOP", 0, 0)
+quickFrame.titleChip.center:SetSize(150, 42)
+quickFrame.titleChip.left = quickFrame.titleChip:CreateTexture(nil, "ARTWORK")
+quickFrame.titleChip.left:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+quickFrame.titleChip.left:SetTexCoord(0.21, 0.31, 0, 0.63)
+quickFrame.titleChip.left:SetPoint("RIGHT", quickFrame.titleChip.center, "LEFT", 0, 0)
+quickFrame.titleChip.left:SetSize(30, 42)
+quickFrame.titleChip.right = quickFrame.titleChip:CreateTexture(nil, "ARTWORK")
+quickFrame.titleChip.right:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+quickFrame.titleChip.right:SetTexCoord(0.67, 0.77, 0, 0.63)
+quickFrame.titleChip.right:SetPoint("LEFT", quickFrame.titleChip.center, "RIGHT", 0, 0)
+quickFrame.titleChip.right:SetSize(30, 42)
+
+quickFrame.title = quickFrame.titleChip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+quickFrame.title:SetPoint("CENTER", quickFrame.titleChip.center, "CENTER", 0, 0)
+quickFrame.title:SetText(COLOR_HEADER_GOLD .. ADDON_TITLE .. COLOR_RESET)
+
+quickFrame.contentPanel = CreateFrame("Frame", nil, quickFrame, "BackdropTemplate")
+quickFrame.contentPanel:SetPoint("TOPLEFT", 10, -60)
+quickFrame.contentPanel:SetPoint("BOTTOMRIGHT", -10, 28)
+quickFrame.contentPanel:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 10,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 }
+})
+quickFrame.contentPanel:SetBackdropColor(0.04, 0.04, 0.04, 0.88)
+quickFrame.contentPanel:SetBackdropBorderColor(0.45, 0.45, 0.45, 0.9)
+
+local quickFooterFrame = CreateFrame("Frame", nil, quickFrame, "BackdropTemplate")
+quickFooterFrame:SetPoint("BOTTOMLEFT", 10, 8)
+quickFooterFrame:SetPoint("BOTTOMRIGHT", -10, 8)
+quickFooterFrame:SetHeight(18)
+quickFooterFrame:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false, edgeSize = 10,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 }
+})
+quickFooterFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.75)
+quickFooterFrame:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.9)
+
+quickFooterFrame.text = quickFooterFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+quickFooterFrame.text:SetPoint("CENTER")
+quickFooterFrame.text:SetText(string.format(
+    "%s%s%s %sv%s%s | %s",
+    COLOR_FOOTER_GOLD, ADDON_TITLE, COLOR_RESET,
+    COLOR_DARK_RED, ADDON_VERSION, COLOR_RESET,
+    coloredAuthor
+))
+
+local FORCE_INVITE_PERMISSION_BYPASS = true -- TODO: Set to false after invite-permission testing.
+
+local function PlayerHasGuild()
+    local guildName = GetGuildInfo("player")
+    return guildName ~= nil and guildName ~= ""
+end
+
+local function RawPlayerCanInviteGuildMembers()
     if C_GuildInfo and C_GuildInfo.CanInvite then
         return C_GuildInfo.CanInvite()
     end
@@ -147,6 +278,17 @@ local function PlayerCanInviteGuildMembers()
         return IsGuildLeader()
     end
     return false
+end
+
+local function PlayerCanInviteGuildMembers()
+    if FORCE_INVITE_PERMISSION_BYPASS then
+        return true
+    end
+    return RawPlayerCanInviteGuildMembers()
+end
+
+local function PlayerCanRecruitNow()
+    return PlayerHasGuild() and RawPlayerCanInviteGuildMembers()
 end
 
 local welcomeFrame = CreateFrame("Frame", nil, mainFrame)
@@ -191,13 +333,14 @@ welcomeStatus:SetJustifyH("CENTER")
 
 local welcomeStartBtn = CreateFrame("Button", nil, welcomeContent, "UIPanelButtonTemplate")
 welcomeStartBtn:SetSize(320, 36)
-welcomeStartBtn:SetPoint("BOTTOM", welcomeContent, "BOTTOM", 0, 26)
+welcomeStartBtn:SetPoint("BOTTOM", welcomeContent, "BOTTOM", 0, -4)
 welcomeStartBtn:SetText("Start Scanning")
 welcomeStartBtn:SetNormalFontObject("GameFontNormalLarge")
 welcomeStartBtn:SetHighlightFontObject("GameFontNormalLarge")
 welcomeStartBtn:SetDisabledFontObject("GameFontDisable")
 
 local function ShowMainAddonWindow(forceScanner)
+    quickFrame:Hide()
     mainFrame:Show()
     if SetWelcomeMode then
         SetWelcomeMode(false)
@@ -266,10 +409,32 @@ local function ShowAddonWindow(forceScanner)
     end
 end
 
+local function OpenQuickScannerWindow()
+    if not settingsDB then
+        ShowMainAddonWindow(false)
+        SetTab(8)
+        return
+    end
+
+    local guildName = GetGuildInfo("player")
+    local hasGuild = guildName ~= nil and guildName ~= ""
+    local canInvite = hasGuild and PlayerCanInviteGuildMembers()
+    local blocked = (not hasGuild) or (not canInvite)
+
+    if blocked then
+        UpdateWelcomeState(false)
+        return
+    end
+
+    settingsDB.splashSeen = true
+    ShowMainAddonWindow(false)
+    SetTab(8)
+end
 local function ToggleAddonWindow()
-    if mainFrame:IsShown() or welcomeFrame:IsShown() then
+    if mainFrame:IsShown() or welcomeFrame:IsShown() or quickFrame:IsShown() then
         mainFrame:Hide()
         welcomeFrame:Hide()
+        quickFrame:Hide()
     else
         ShowAddonWindow(false)
     end
@@ -312,6 +477,8 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         end
 
         if UpdateMinimapPosition then UpdateMinimapPosition() end
+
+        print(string.format("|cffC8A04A[Cogwheel Recruiter]|r v%s by |cff69CCF0Marviy|r @ Nightslayer. Type /cogwheel to start.", ADDON_VERSION))
 
         -- Cleanup old history
         if NS.PruneHistory then
@@ -490,6 +657,10 @@ local whispersView = CreateFrame("Frame", nil, mainFrame)
 whispersView:SetAllPoints(contentPanel)
 whispersView:Hide()
 
+local quickView = CreateFrame("Frame", nil, quickFrame)
+quickView:SetAllPoints(quickFrame.contentPanel)
+quickView:Hide()
+
 local gsTitle = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 gsTitle:SetPoint("TOPLEFT", 20, -15)
 gsTitle:SetText(string.format("Active Guild Members (Last %d Days)", ACTIVE_MEMBER_WINDOW_DAYS))
@@ -498,39 +669,39 @@ gsTitle:SetText(string.format("Active Guild Members (Last %d Days)", ACTIVE_MEMB
 local currentStatsMode = "CLASS" -- "CLASS" or "LEVEL"
 local currentVisMode = "BAR" -- "MOSAIC" or "BAR"
 
-local statsTypeDD = CreateFrame("Frame", "CogwheelRecruiterStatsTypeDD", guildStatsView, "UIDropDownMenuTemplate")
-statsTypeDD:SetPoint("TOPLEFT", 0, -35)
-UIDropDownMenu_SetWidth(statsTypeDD, 100)
-UIDropDownMenu_Initialize(statsTypeDD, function(self, level)
+guildStatsView.statsTypeDD = CreateFrame("Frame", "CogwheelRecruiterStatsTypeDD", guildStatsView, "UIDropDownMenuTemplate")
+guildStatsView.statsTypeDD:SetPoint("TOPLEFT", 0, -35)
+UIDropDownMenu_SetWidth(guildStatsView.statsTypeDD, 100)
+UIDropDownMenu_Initialize(guildStatsView.statsTypeDD, function(self, level)
     local info = UIDropDownMenu_CreateInfo()
     info.text = "By Class"
     info.checked = (currentStatsMode == "CLASS")
-    info.func = function() currentStatsMode = "CLASS"; UIDropDownMenu_SetText(statsTypeDD, "By Class"); if UpdateGuildStats then UpdateGuildStats() end end
+    info.func = function() currentStatsMode = "CLASS"; UIDropDownMenu_SetText(guildStatsView.statsTypeDD, "By Class"); if UpdateGuildStats then UpdateGuildStats() end end
     UIDropDownMenu_AddButton(info)
 
     info.text = "By Level"
     info.checked = (currentStatsMode == "LEVEL")
-    info.func = function() currentStatsMode = "LEVEL"; UIDropDownMenu_SetText(statsTypeDD, "By Level"); if UpdateGuildStats then UpdateGuildStats() end end
+    info.func = function() currentStatsMode = "LEVEL"; UIDropDownMenu_SetText(guildStatsView.statsTypeDD, "By Level"); if UpdateGuildStats then UpdateGuildStats() end end
     UIDropDownMenu_AddButton(info)
 end)
-UIDropDownMenu_SetText(statsTypeDD, "By Class")
+UIDropDownMenu_SetText(guildStatsView.statsTypeDD, "By Class")
 
-local statsVisDD = CreateFrame("Frame", "CogwheelRecruiterStatsVisDD", guildStatsView, "UIDropDownMenuTemplate")
-statsVisDD:SetPoint("LEFT", statsTypeDD, "RIGHT", -20, 0)
-UIDropDownMenu_SetWidth(statsVisDD, 120)
-UIDropDownMenu_Initialize(statsVisDD, function(self, level)
+guildStatsView.statsVisDD = CreateFrame("Frame", "CogwheelRecruiterStatsVisDD", guildStatsView, "UIDropDownMenuTemplate")
+guildStatsView.statsVisDD:SetPoint("LEFT", guildStatsView.statsTypeDD, "RIGHT", -20, 0)
+UIDropDownMenu_SetWidth(guildStatsView.statsVisDD, 120)
+UIDropDownMenu_Initialize(guildStatsView.statsVisDD, function(self, level)
     local info = UIDropDownMenu_CreateInfo()
     info.text = "Mosaic"
     info.checked = (currentVisMode == "MOSAIC")
-    info.func = function() currentVisMode = "MOSAIC"; UIDropDownMenu_SetText(statsVisDD, "Mosaic"); if UpdateGuildStats then UpdateGuildStats() end end
+    info.func = function() currentVisMode = "MOSAIC"; UIDropDownMenu_SetText(guildStatsView.statsVisDD, "Mosaic"); if UpdateGuildStats then UpdateGuildStats() end end
     UIDropDownMenu_AddButton(info)
 
     info.text = "Stacked Bar"
     info.checked = (currentVisMode == "BAR")
-    info.func = function() currentVisMode = "BAR"; UIDropDownMenu_SetText(statsVisDD, "Stacked Bar"); if UpdateGuildStats then UpdateGuildStats() end end
+    info.func = function() currentVisMode = "BAR"; UIDropDownMenu_SetText(guildStatsView.statsVisDD, "Stacked Bar"); if UpdateGuildStats then UpdateGuildStats() end end
     UIDropDownMenu_AddButton(info)
 end)
-UIDropDownMenu_SetText(statsVisDD, "Stacked Bar")
+UIDropDownMenu_SetText(guildStatsView.statsVisDD, "Stacked Bar")
 
 local gsContainer = CreateFrame("Frame", nil, guildStatsView)
 gsContainer:SetPoint("TOPLEFT", 20, -80)
@@ -864,8 +1035,30 @@ local function UpdateStatsView()
 end
 
 SetTab = function(id)
+    local previousTab = currentTab
     currentTab = id
+    if id == 7 and (previousTab == 1 or previousTab == 8) then
+        NS.filterReturnTab = previousTab
+    end
+
+    if id == 8 then
+        mainFrame:Hide()
+        welcomeFrame:Hide()
+        quickFrame:Show()
+        quickView:Show()
+        if UpdateTabButtons then UpdateTabButtons() end
+        return
+    end
+
+    quickFrame:Hide()
+    mainFrame:Show()
+
+    if ApplyMainLayoutForTab then
+        ApplyMainLayoutForTab(id)
+    end
+
     scanView:Hide()
+    quickView:Hide()
     historyView:Hide()
     settingsView:Hide()
     filtersView:Hide()
@@ -899,13 +1092,19 @@ SetTab = function(id)
 end
 
 local tab1 = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
-tab1:SetSize(120, 24)
-tab1:SetPoint("TOP", mainFrame, "TOP", -62, -30)
+tab1:SetSize(132, 24)
+tab1:SetPoint("TOP", mainFrame, "TOP", 0, -30)
 tab1:SetText("Scanner")
 tab1:SetScript("OnClick", function() SetTab(1) end)
 
+local tabQuick = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+tabQuick:SetSize(132, 24)
+tabQuick:SetPoint("RIGHT", tab1, "LEFT", -4, 0)
+tabQuick:SetText("Quick Scanner")
+tabQuick:SetScript("OnClick", function() SetTab(8) end)
+
 local tab6 = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
-tab6:SetSize(120, 24)
+tab6:SetSize(132, 24)
 tab6:SetPoint("LEFT", tab1, "RIGHT", 4, 0)
 tab6:SetText("Whispers")
 tab6:SetScript("OnClick", function() SetTab(6) end)
@@ -979,18 +1178,41 @@ local btnGuild = CreateAuxTabButton(btnStats, "Guild", 5)
 local btnSettings = CreateAuxTabButton(btnGuild, "Settings", 3)
 local btnHistory = auxStart
 
+ApplyMainLayoutForTab = function(tabId)
+    contentPanel:ClearAllPoints()
+    contentPanel:SetPoint("TOPLEFT", 10, -60)
+    mainFrame:SetSize(520, 550)
+    contentPanel:SetPoint("BOTTOMRIGHT", -10, 58)
+
+    if not welcomeFrame:IsShown() then
+        footerFrame:Show()
+        auxStart:Show()
+        btnStats:Show()
+        btnGuild:Show()
+        btnSettings:Show()
+    end
+end
+
 SetWelcomeMode = function(enabled)
     if enabled then
+        mainFrame:SetSize(520, 550)
+        contentPanel:ClearAllPoints()
+        contentPanel:SetPoint("TOPLEFT", 10, -60)
+        contentPanel:SetPoint("BOTTOMRIGHT", -10, 58)
         contentPanel:Hide()
+        quickFrame:Hide()
         footerFrame:Hide()
+        tabQuick:Hide()
         tab1:Hide()
         tab6:Hide()
+        mainFrame.quickModeBtn:Hide()
         auxStart:Hide()
         btnStats:Hide()
         btnGuild:Hide()
         btnSettings:Hide()
 
         scanView:Hide()
+        quickView:Hide()
         historyView:Hide()
         settingsView:Hide()
         filtersView:Hide()
@@ -1001,19 +1223,21 @@ SetWelcomeMode = function(enabled)
         welcomeFrame:Show()
     else
         contentPanel:Show()
-        footerFrame:Show()
+        tabQuick:Show()
         tab1:Show()
         tab6:Show()
-        auxStart:Show()
-        btnStats:Show()
-        btnGuild:Show()
-        btnSettings:Show()
+        mainFrame.quickModeBtn:Show()
         welcomeFrame:Hide()
+
+        if ApplyMainLayoutForTab then
+            ApplyMainLayoutForTab(currentTab or 1)
+        end
     end
 end
 
 UpdateTabButtons = function()
     local primaryActive = {
+        [8] = tabQuick,
         [1] = tab1,
         [6] = tab6
     }
@@ -1039,7 +1263,6 @@ UpdateTabButtons = function()
 end
 
 UpdateTabButtons()
-
 -- =============================================================
 -- 4. RESULTS VIEW (Tab 1 - New UI)
 -- =============================================================
@@ -1121,7 +1344,10 @@ end)
 local scanFiltersBtn = CreateFrame("Button", nil, targetUI, "UIPanelButtonTemplate")
 scanFiltersBtn:SetSize(28, 25)
 scanFiltersBtn:SetText("")
-scanFiltersBtn:SetScript("OnClick", function() SetTab(7) end)
+scanFiltersBtn:SetScript("OnClick", function()
+    NS.filterReturnTab = 1
+    SetTab(7)
+end)
 local scanFiltersIcon = scanFiltersBtn:CreateTexture(nil, "ARTWORK")
 scanFiltersIcon:SetSize(16, 16)
 scanFiltersIcon:SetPoint("CENTER")
@@ -1214,6 +1440,88 @@ local function CreateBaseRow(parent, isHistory)
 
     return row
 end
+local QUICK_QUEUE_TARGET = 10
+local QUICK_QUEUE_REFILL_AT = 2
+local QUICK_QUEUE_MAX = 20
+local QUICK_LEVEL_BALANCE_BUCKETS = 4
+
+local quickUI = {}
+
+quickUI.topTabsRow = CreateFrame("Frame", nil, quickFrame)
+quickUI.topTabsRow:SetSize(190, 24)
+quickUI.topTabsRow:SetPoint("TOP", quickFrame, "TOP", 0, -30)
+
+quickUI.filtersTab = CreateFrame("Button", nil, quickUI.topTabsRow, "UIPanelButtonTemplate")
+quickUI.filtersTab:SetSize(88, 24)
+quickUI.filtersTab:SetPoint("LEFT", quickUI.topTabsRow, "LEFT", 0, 0)
+quickUI.filtersTab:SetText("Filters")
+quickUI.filtersTab:SetScript("OnClick", function()
+    local qx, qy = quickFrame:GetCenter()
+    NS.filterReturnTab = 8
+    SetTab(7)
+    if qx and qy then
+        mainFrame:ClearAllPoints()
+        mainFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", qx + 360, qy)
+    end
+    quickFrame:Show()
+    quickView:Show()
+end)
+
+quickUI.whispersTab = CreateFrame("Button", nil, quickUI.topTabsRow, "UIPanelButtonTemplate")
+quickUI.whispersTab:SetSize(96, 24)
+quickUI.whispersTab:SetPoint("LEFT", quickUI.filtersTab, "RIGHT", 6, 0)
+quickUI.whispersTab:SetText("Whispers")
+quickUI.whispersTab:SetScript("OnClick", function()
+    local qx, qy = quickFrame:GetCenter()
+    SetTab(6)
+    if qx and qy then
+        mainFrame:ClearAllPoints()
+        mainFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", qx + 360, qy)
+    end
+    quickFrame:Show()
+    quickView:Show()
+end)
+
+quickUI.nameText = quickView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+quickUI.nameText:SetPoint("TOP", quickView, "TOP", 0, -24)
+quickUI.nameText:SetText("No Candidate")
+
+quickUI.levelText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+quickUI.levelText:SetPoint("TOP", quickUI.nameText, "BOTTOM", 0, -8)
+quickUI.levelText:SetText("")
+
+quickUI.queueText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+quickUI.queueText:SetPoint("BOTTOM", quickView, "BOTTOM", 0, 52)
+quickUI.queueText:SetText("Queue: 0")
+quickUI.queueText:SetTextColor(0.62, 0.62, 0.62)
+
+quickUI.statusText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+quickUI.statusText:SetPoint("BOTTOM", quickView, "BOTTOM", 0, 34)
+quickUI.statusText:SetWidth(290)
+quickUI.statusText:SetJustifyH("CENTER")
+quickUI.statusText:SetText("Press Next to start scanning.")
+quickUI.statusText:SetTextColor(0.58, 0.58, 0.58)
+
+quickUI.bottomRow = CreateFrame("Frame", nil, quickView)
+quickUI.bottomRow:SetSize(290, 24)
+quickUI.bottomRow:SetPoint("BOTTOM", quickView, "BOTTOM", 0, 4)
+
+quickUI.nextBtn = CreateFrame("Button", nil, quickUI.bottomRow, "UIPanelButtonTemplate")
+quickUI.nextBtn:SetSize(90, 24)
+quickUI.nextBtn:SetPoint("LEFT", quickUI.bottomRow, "LEFT", 0, 0)
+quickUI.nextBtn:SetText("Next")
+
+quickUI.whisperBtn = CreateFrame("Button", nil, quickUI.bottomRow, "UIPanelButtonTemplate")
+quickUI.whisperBtn:SetSize(94, 24)
+quickUI.whisperBtn:SetPoint("LEFT", quickUI.nextBtn, "RIGHT", 6, 0)
+quickUI.whisperBtn:SetText("Whisper")
+quickUI.whisperBtn:Disable()
+
+quickUI.inviteBtn = CreateFrame("Button", nil, quickUI.bottomRow, "UIPanelButtonTemplate")
+quickUI.inviteBtn:SetSize(90, 24)
+quickUI.inviteBtn:SetPoint("LEFT", quickUI.whisperBtn, "RIGHT", 6, 0)
+quickUI.inviteBtn:SetText("Invite")
+quickUI.inviteBtn:Disable()
 
 local function ClearScanView()
     for _, row in ipairs(scanRows) do row:Hide() end
@@ -1227,6 +1535,7 @@ local function UpdateScanList(results)
 
     local yOffset = 0
     local count = 0
+    local canRecruit = PlayerCanRecruitNow()
 
     for i, data in ipairs(results) do
         local minLvl = settingsDB.minLevel or 1
@@ -1285,7 +1594,17 @@ local function UpdateScanList(results)
                  row.infoText:SetTextColor(1, 1, 1)
             end
 
+            if not canRecruit then
+                row.whisperBtn:Disable()
+                row.actionBtn:Disable()
+            end
+
             row.whisperBtn:SetScript("OnClick", function(self)
+                if not PlayerCanRecruitNow() then
+                    print("|cffff0000[Cogwheel]|r " .. RECRUIT_PERMISSION_REQUIRED_TEXT)
+                    return
+                end
+
                 local sent = SendWhisperToPlayer(data.name, data.class)
                 if sent then
                     self:SetText("Whispered")
@@ -1295,6 +1614,11 @@ local function UpdateScanList(results)
             end)
 
             row.actionBtn:SetScript("OnClick", function(self)
+                if not PlayerCanRecruitNow() then
+                    print("|cffff0000[Cogwheel]|r " .. RECRUIT_PERMISSION_REQUIRED_TEXT)
+                    return
+                end
+
                 if C_GuildInfo and C_GuildInfo.Invite then C_GuildInfo.Invite(data.name)
                 else GuildInvite(data.name) end
 
@@ -1583,6 +1907,7 @@ end
 -- 7. SETTINGS VIEW (Tab 3)
 -- =============================================================
 
+do
 local settingsScroll = CreateFrame("ScrollFrame", nil, settingsView, "UIPanelScrollFrameTemplate")
 settingsScroll:SetPoint("TOPLEFT", 0, -5)
 settingsScroll:SetPoint("BOTTOMRIGHT", -25, 10)
@@ -1801,12 +2126,18 @@ welcomeBox:SetScript("OnTextChanged", function(self)
 end)
 
 
+do -- FILTERS local scope
 local saveFiltersBtn = CreateFrame("Button", nil, filtersView, "UIPanelButtonTemplate")
 saveFiltersBtn:SetSize(94, 22)
 saveFiltersBtn:SetPoint("BOTTOM", filtersView, "BOTTOM", 0, 10)
 saveFiltersBtn:SetText("Save Filters")
 saveFiltersBtn:SetScript("OnClick", function()
-    SetTab(1)
+    if NS.ResetQuickScanState then
+        NS.ResetQuickScanState()
+    end
+    local returnTab = NS.filterReturnTab
+    if returnTab ~= 8 then returnTab = 1 end
+    SetTab(returnTab)
 end)
 
 local filtersScroll = CreateFrame("ScrollFrame", nil, filtersView, "UIPanelScrollFrameTemplate")
@@ -2062,6 +2393,13 @@ balLevelBtn:SetScript("OnClick", function()
     print("|cff00ff00[Cogwheel]|r Level range set to " .. newMin .. "-" .. newMax .. " (Targeting: " .. table.concat(selectedNames, ", ") .. ")")
 end)
 
+
+filtersView:HookScript("OnShow", function()
+    InitializeLevelSlidersFromSettings()
+end)
+
+filtersContent:SetHeight(360)
+end -- FILTERS local scope
 -- History Retention (revamped)
 local historyTop = welcomeTop - 168
 local historyHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2115,12 +2453,9 @@ settingsView:HookScript("OnShow", function()
     UpdateWelcomePreview()
 end)
 
-filtersView:HookScript("OnShow", function()
-    InitializeLevelSlidersFromSettings()
-end)
 
 settingsContent:SetHeight(400)
-filtersContent:SetHeight(360)
+end -- SETTINGS/FILTERS local scope
 
 -- =============================================================
 -- 7. SCAN LOGIC (With Queue System)
@@ -2133,6 +2468,668 @@ local scanQueue = {}
 local currentScanZone = ""
 local accumulatedResults = {}
 
+local quickState = {
+    isScanning = false,
+    isWaitingForWho = false,
+    scanQueue = {},
+    currentScanZone = "",
+    queue = {},
+    seenNames = {},
+    scannedZones = 0,
+    totalZones = 0,
+    refillTarget = QUICK_QUEUE_TARGET,
+    currentCandidate = nil,
+    quietZones = 0,
+    maxQuietZones = 0,
+    filterSignature = nil,
+    nextLevelBucket = 1
+}
+
+local function QuickMatchesFilters(level, classToken)
+    if not settingsDB then return true end
+
+    local minLvl = settingsDB.minLevel or 1
+    local maxLvl = settingsDB.maxLevel or MAX_PLAYER_LEVEL
+    if level < minLvl or level > maxLvl then return false end
+
+    local classTag = string.upper(classToken or "PRIEST")
+    local classAllowed = settingsDB.classes and settingsDB.classes[classTag]
+    if classAllowed == nil then classAllowed = true end
+    return classAllowed
+end
+local function BuildQuickFilterSignature()
+    local minLvl = (settingsDB and settingsDB.minLevel) or 1
+    local maxLvl = (settingsDB and settingsDB.maxLevel) or MAX_PLAYER_LEVEL
+    local parts = { tostring(minLvl), tostring(maxLvl) }
+
+    for _, cls in ipairs(CLASS_LIST) do
+        local enabled = settingsDB and settingsDB.classes and settingsDB.classes[cls]
+        if enabled == nil then enabled = true end
+        parts[#parts + 1] = enabled and "1" or "0"
+    end
+
+    return table.concat(parts, ":")
+end
+
+local LOW_LEVEL_ZONE_FACTION = {
+    ["Elwynn Forest"] = "Alliance",
+    ["Dun Morogh"] = "Alliance",
+    ["Teldrassil"] = "Alliance",
+    ["Azuremyst Isle"] = "Alliance",
+    ["Westfall"] = "Alliance",
+    ["Loch Modan"] = "Alliance",
+    ["Redridge Mountains"] = "Alliance",
+    ["Bloodmyst Isle"] = "Alliance",
+
+    ["Durotar"] = "Horde",
+    ["Mulgore"] = "Horde",
+    ["Tirisfal Glades"] = "Horde",
+    ["Eversong Woods"] = "Horde",
+    ["The Barrens"] = "Horde",
+    ["Silverpine Forest"] = "Horde",
+    ["Ghostlands"] = "Horde",
+}
+
+local CITY_ZONE_FACTION = {
+    ["Stormwind City"] = "Alliance",
+    ["Ironforge"] = "Alliance",
+    ["Darnassus"] = "Alliance",
+    ["The Exodar"] = "Alliance",
+
+    ["Orgrimmar"] = "Horde",
+    ["Undercity"] = "Horde",
+    ["Thunder Bluff"] = "Horde",
+    ["Silvermoon City"] = "Horde",
+
+    ["Shattrath City"] = "Neutral",
+}
+
+local function GetPlayerFactionGroup()
+    if not UnitFactionGroup then return nil end
+    local faction = UnitFactionGroup("player")
+    if faction == "Alliance" or faction == "Horde" then
+        return faction
+    end
+    return nil
+end
+
+local function ShouldSkipQuickZone(zone, minLvl, maxLvl, playerFaction)
+    local cityFaction = CITY_ZONE_FACTION[zone]
+    if cityFaction and cityFaction ~= "Neutral" and playerFaction and cityFaction ~= playerFaction then
+        return true
+    end
+
+    local zoneFaction = LOW_LEVEL_ZONE_FACTION[zone]
+    if zoneFaction and playerFaction and zoneFaction ~= playerFaction and maxLvl <= 30 then
+        return true
+    end
+
+    return false
+end
+
+local function GetQuickZoneFactionPriority(zone, cat, playerFaction, maxLvl)
+    local cityFaction = CITY_ZONE_FACTION[zone]
+    if cityFaction then
+        if cityFaction == "Neutral" then
+            return 1
+        end
+        if playerFaction and cityFaction == playerFaction then
+            return 0
+        end
+        return 3
+    end
+
+    local catMin = tonumber(cat.min) or 0
+    local catMax = tonumber(cat.max) or 0
+    local zoneFaction = LOW_LEVEL_ZONE_FACTION[zone]
+
+    if catMin > 0 and catMax <= 30 and zoneFaction and playerFaction then
+        if zoneFaction == playerFaction then
+            return 0
+        end
+        if maxLvl > 30 then
+            return 2
+        end
+        return 3
+    end
+
+    return 1
+end
+local function SortQuickZoneBucket(bucket, kind)
+    table.sort(bucket, function(a, b)
+        if kind == "inRange" then
+            if a.distance ~= b.distance then
+                return a.distance < b.distance
+            end
+            if a.anchor ~= b.anchor then
+                return a.anchor < b.anchor
+            end
+            return (a.cat.name or "") < (b.cat.name or "")
+        elseif kind == "aboveRange" then
+            if a.min ~= b.min then
+                return a.min < b.min
+            end
+            if a.anchor ~= b.anchor then
+                return a.anchor < b.anchor
+            end
+            return (a.cat.name or "") < (b.cat.name or "")
+        elseif kind == "belowRange" then
+            if a.max ~= b.max then
+                return a.max > b.max
+            end
+            if a.anchor ~= b.anchor then
+                return a.anchor > b.anchor
+            end
+            return (a.cat.name or "") < (b.cat.name or "")
+        end
+
+        if a.anchor == b.anchor then
+            return (a.cat.name or "") < (b.cat.name or "")
+        end
+        return a.anchor < b.anchor
+    end)
+end
+
+local function BuildQuickZoneQueue()
+    local minLvl = (settingsDB and settingsDB.minLevel) or 1
+    local maxLvl = (settingsDB and settingsDB.maxLevel) or MAX_PLAYER_LEVEL
+    local filterCenter = (minLvl + maxLvl) / 2
+
+    local inRange = {}
+    local aboveRange = {}
+    local belowRange = {}
+    local misc = {}
+
+    for _, cat in ipairs(ZONE_CATEGORIES) do
+        if cat.zones and #cat.zones > 0 then
+            local minCat = tonumber(cat.min) or 0
+            local maxCat = tonumber(cat.max) or 0
+            local hasLevelRange = minCat > 0 and maxCat > 0
+            local anchor = hasLevelRange and ((minCat + maxCat) / 2) or 999
+            local entry = {
+                cat = cat,
+                anchor = anchor,
+                min = minCat,
+                max = maxCat,
+                distance = math.abs(anchor - filterCenter)
+            }
+
+            if hasLevelRange then
+                local overlaps = (maxCat >= minLvl and minCat <= maxLvl)
+                if overlaps then
+                    table.insert(inRange, entry)
+                elseif minCat > maxLvl then
+                    table.insert(aboveRange, entry)
+                else
+                    table.insert(belowRange, entry)
+                end
+            else
+                table.insert(misc, entry)
+            end
+        end
+    end
+
+    SortQuickZoneBucket(inRange, "inRange")
+    SortQuickZoneBucket(belowRange, "belowRange")
+    SortQuickZoneBucket(aboveRange, "aboveRange")
+    SortQuickZoneBucket(misc, "misc")
+
+    local orderedCats = {}
+    for _, entry in ipairs(inRange) do table.insert(orderedCats, entry.cat) end
+    for _, entry in ipairs(belowRange) do table.insert(orderedCats, entry.cat) end
+    for _, entry in ipairs(aboveRange) do table.insert(orderedCats, entry.cat) end
+    for _, entry in ipairs(misc) do table.insert(orderedCats, entry.cat) end
+
+    local zones = {}
+    local seenZones = {}
+    local playerFaction = GetPlayerFactionGroup()
+
+    for _, cat in ipairs(orderedCats) do
+        local zoneEntries = {}
+        for index, zone in ipairs(cat.zones) do
+            if not ShouldSkipQuickZone(zone, minLvl, maxLvl, playerFaction) then
+                table.insert(zoneEntries, {
+                    zone = zone,
+                    index = index,
+                    priority = GetQuickZoneFactionPriority(zone, cat, playerFaction, maxLvl)
+                })
+            end
+        end
+
+        table.sort(zoneEntries, function(a, b)
+            if a.priority ~= b.priority then
+                return a.priority < b.priority
+            end
+            return a.index < b.index
+        end)
+
+        for _, entry in ipairs(zoneEntries) do
+            local zone = entry.zone
+            if not seenZones[zone] then
+                seenZones[zone] = true
+                table.insert(zones, zone)
+            end
+        end
+    end
+
+    return zones
+end
+
+local function ResetQuickZoneQueue()
+    quickState.scanQueue = BuildQuickZoneQueue()
+    quickState.scannedZones = 0
+    quickState.totalZones = #quickState.scanQueue
+    quickState.seenNames = {}
+    quickState.filterSignature = BuildQuickFilterSignature()
+end
+
+local function ResetQuickStateForFilterChange()
+    quickState.isScanning = false
+    quickState.isWaitingForWho = false
+    quickState.currentScanZone = ""
+    quickState.queue = {}
+    quickState.currentCandidate = nil
+    quickState.quietZones = 0
+    quickState.maxQuietZones = 0
+    quickState.nextLevelBucket = 1
+    ResetQuickZoneQueue()
+end
+
+local function EnsureQuickStateMatchesFilters()
+    if quickState.filterSignature == BuildQuickFilterSignature() then
+        return false
+    end
+    ResetQuickStateForFilterChange()
+    return true
+end
+
+NS.ResetQuickScanState = function()
+    ResetQuickStateForFilterChange()
+end
+
+local function PopNextQuickZone()
+    if #quickState.scanQueue == 0 then
+        ResetQuickZoneQueue()
+    end
+    if #quickState.scanQueue == 0 then return nil end
+
+    quickState.currentScanZone = table.remove(quickState.scanQueue, 1)
+    quickState.scannedZones = quickState.scannedZones + 1
+    return quickState.currentScanZone
+end
+
+local function IsCandidateInQuickQueue(name)
+    if quickState.currentCandidate and quickState.currentCandidate.name == name then
+        return true
+    end
+    for _, entry in ipairs(quickState.queue) do
+        if entry.name == name then
+            return true
+        end
+    end
+    return false
+end
+
+local function UpdateQuickCandidateCard(statusText)
+    local candidate = quickState.currentCandidate
+    quickUI.queueText:SetText("Queue: " .. #quickState.queue)
+
+    if candidate then
+        local classTag = string.upper(candidate.class or "PRIEST")
+        local color = RAID_CLASS_COLORS[classTag]
+        if color then
+            quickUI.nameText:SetTextColor(color.r, color.g, color.b)
+        else
+            quickUI.nameText:SetTextColor(1, 1, 1)
+        end
+        quickUI.nameText:SetText(candidate.name or "?")
+        quickUI.levelText:SetText("Level " .. tostring(candidate.level or 0))
+    else
+        quickUI.nameText:SetTextColor(1, 1, 1)
+        quickUI.nameText:SetText("No Candidate")
+        quickUI.levelText:SetText("")
+    end
+
+    local whisperEnabled = false
+    local inviteEnabled = false
+    if candidate then
+        whisperEnabled = true
+        inviteEnabled = true
+
+        local history = historyDB and historyDB[candidate.name]
+        local whisperState = whispersDB and whispersDB[GetWhisperKey(candidate.name)]
+
+        if history then
+            if history.action == "JOINED" then
+                whisperEnabled = false
+                inviteEnabled = false
+            elseif history.action == "INVITED" then
+                inviteEnabled = false
+            end
+        end
+        if whisperState and whisperState.lastOutbound then
+            whisperEnabled = false
+        end
+    end
+
+    if not PlayerCanRecruitNow() then
+        whisperEnabled = false
+        inviteEnabled = false
+    end
+
+    if whisperEnabled then quickUI.whisperBtn:Enable() else quickUI.whisperBtn:Disable() end
+    if inviteEnabled then quickUI.inviteBtn:Enable() else quickUI.inviteBtn:Disable() end
+
+    if quickState.isWaitingForWho then
+        quickUI.nextBtn:SetText("Scanning...")
+        quickUI.nextBtn:Disable()
+    else
+        quickUI.nextBtn:SetText("Next")
+        quickUI.nextBtn:Enable()
+    end
+
+    if statusText and statusText ~= "" then
+        quickUI.statusText:SetText(statusText)
+    elseif candidate then
+        quickUI.statusText:SetText("Use Next to move through queued candidates.")
+    elseif quickState.isScanning then
+        quickUI.statusText:SetText("Building candidate queue...")
+    else
+        quickUI.statusText:SetText("Press Next to start scanning.")
+    end
+end
+
+local function GetQuickLevelBucketCount()
+    local minLvl = (settingsDB and settingsDB.minLevel) or 1
+    local maxLvl = (settingsDB and settingsDB.maxLevel) or MAX_PLAYER_LEVEL
+    local span = math.max((maxLvl - minLvl + 1), 1)
+    return math.max(math.min(QUICK_LEVEL_BALANCE_BUCKETS, span), 1)
+end
+
+local function GetQuickLevelBucketIndex(level)
+    local minLvl = (settingsDB and settingsDB.minLevel) or 1
+    local maxLvl = (settingsDB and settingsDB.maxLevel) or MAX_PLAYER_LEVEL
+    local bucketCount = GetQuickLevelBucketCount()
+    if bucketCount <= 1 or maxLvl <= minLvl then
+        return 1, bucketCount
+    end
+
+    local span = math.max((maxLvl - minLvl + 1), 1)
+    local relative = (level or minLvl) - minLvl
+    if relative < 0 then relative = 0 end
+    if relative > (span - 1) then relative = span - 1 end
+
+    local idx = math.floor((relative * bucketCount) / span) + 1
+    if idx < 1 then idx = 1 end
+    if idx > bucketCount then idx = bucketCount end
+    return idx, bucketCount
+end
+
+local function PromoteNextQuickCandidate()
+    local queueCount = #quickState.queue
+    if queueCount == 0 then
+        quickState.currentCandidate = nil
+        return
+    end
+
+    local bucketCount = GetQuickLevelBucketCount()
+    if (quickState.nextLevelBucket or 0) < 1 or quickState.nextLevelBucket > bucketCount then
+        quickState.nextLevelBucket = 1
+    end
+
+    local selectedIndex
+    for offset = 0, bucketCount - 1 do
+        local targetBucket = ((quickState.nextLevelBucket + offset - 1) % bucketCount) + 1
+        for i, entry in ipairs(quickState.queue) do
+            local bucket = GetQuickLevelBucketIndex(entry.level or 0)
+            if bucket == targetBucket then
+                selectedIndex = i
+                quickState.nextLevelBucket = (targetBucket % bucketCount) + 1
+                break
+            end
+        end
+        if selectedIndex then
+            break
+        end
+    end
+
+    if not selectedIndex then
+        selectedIndex = 1
+    end
+
+    quickState.currentCandidate = table.remove(quickState.queue, selectedIndex)
+end
+
+local function GetQuickCandidateCount()
+    return #quickState.queue + (quickState.currentCandidate and 1 or 0)
+end
+
+local ProcessNextQuickZone
+
+local function FinishQuickRefill(statusText)
+    quickState.isScanning = false
+    quickState.isWaitingForWho = false
+    if not quickState.currentCandidate and #quickState.queue > 0 then PromoteNextQuickCandidate() end
+    UpdateQuickCandidateCard(statusText)
+end
+
+local function CollectQuickWhoResults()
+    local added = 0
+    local num = C_FriendList.GetNumWhoResults()
+
+    for i = 1, num do
+        local info = C_FriendList.GetWhoInfo(i)
+        local name, guild, level, cls, zone
+
+        if type(info) == "table" then
+            name = info.fullName or info.name
+            guild = info.fullGuildName or info.guild or ""
+            level = info.level or 0
+            cls = info.filename or info.classFilename or "PRIEST"
+            zone = info.area or quickState.currentScanZone
+        else
+            name, guild, level, _, _, zone, cls = C_FriendList.GetWhoInfo(i)
+            if not name then name, guild, level, _, _, zone, cls = GetWhoInfo(i) end
+        end
+
+        if not guild then guild = "" end
+
+        if guild == "" and name and QuickMatchesFilters(level or 0, cls) and not quickState.seenNames[name] and not IsCandidateInQuickQueue(name) then
+            local history = historyDB and historyDB[name]
+            if not (history and history.action == "JOINED") then
+                quickState.seenNames[name] = true
+                table.insert(quickState.queue, {
+                    name = name,
+                    level = level or 0,
+                    class = string.upper(cls or "PRIEST"),
+                    zone = zone or quickState.currentScanZone
+                })
+                added = added + 1
+                if #quickState.queue >= QUICK_QUEUE_MAX then
+                    break
+                end
+            end
+        end
+    end
+
+    return added
+end
+
+local function RequestQuickQueueRefill(targetCount)
+    if quickState.isScanning then return end
+
+    if EnsureQuickStateMatchesFilters() then
+        UpdateQuickCandidateCard("Filters changed. Rebuilding queue...")
+    end
+
+    if isScanning then
+        print("|cffff0000[Cogwheel]|r Standard scan in progress. Finish it before using Quick Scanner.")
+        return
+    end
+
+    local target = targetCount or QUICK_QUEUE_TARGET
+    if GetQuickCandidateCount() >= target then
+        if not quickState.currentCandidate then
+            PromoteNextQuickCandidate()
+        end
+        UpdateQuickCandidateCard()
+        return
+    end
+
+    if #quickState.scanQueue == 0 then
+        ResetQuickZoneQueue()
+    end
+    if #quickState.scanQueue == 0 then
+        UpdateQuickCandidateCard("No zones available for current filters.")
+        return
+    end
+
+    quickState.refillTarget = math.min(target, QUICK_QUEUE_MAX)
+    quickState.isScanning = true
+    quickState.isWaitingForWho = false
+    quickState.quietZones = 0
+    quickState.maxQuietZones = math.max(quickState.totalZones, 1) * 2
+
+    ProcessNextQuickZone()
+end
+
+local quickWhoListener = CreateFrame("Frame")
+quickWhoListener:Hide()
+quickWhoListener:SetScript("OnEvent", function(self, event)
+    if event ~= "WHO_LIST_UPDATE" then return end
+
+    quickState.isWaitingForWho = false
+    self:UnregisterEvent("WHO_LIST_UPDATE")
+    self:Hide()
+    if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+
+    local added = CollectQuickWhoResults()
+    if added > 0 then
+        quickState.quietZones = 0
+    else
+        quickState.quietZones = quickState.quietZones + 1
+    end
+
+
+    if GetQuickCandidateCount() >= quickState.refillTarget or GetQuickCandidateCount() >= QUICK_QUEUE_MAX then
+        FinishQuickRefill("Queue ready.")
+        return
+    end
+
+    if quickState.quietZones >= quickState.maxQuietZones then
+        FinishQuickRefill("No matching players found for current filters.")
+        return
+    end
+
+    if not quickState.currentCandidate and #quickState.queue > 0 then PromoteNextQuickCandidate() end
+    quickState.isScanning = false
+    UpdateQuickCandidateCard(string.format("Queue %d/%d. Click Next to continue scanning.", GetQuickCandidateCount(), quickState.refillTarget))
+end)
+
+ProcessNextQuickZone = function()
+    if not quickState.isScanning or quickState.isWaitingForWho then return end
+
+    if InCombatLockdown and InCombatLockdown() then
+        FinishQuickRefill("Cannot run /who while in combat. Click Next after combat.")
+        return
+    end
+
+    local zone = PopNextQuickZone()
+    if not zone then
+        FinishQuickRefill("No zones available for current filters.")
+        return
+    end
+
+    UpdateQuickCandidateCard(string.format("Scanning %s...", zone))
+
+    if FriendsFrame then FriendsFrame:UnregisterEvent("WHO_LIST_UPDATE") end
+    quickWhoListener:RegisterEvent("WHO_LIST_UPDATE")
+    quickWhoListener:Show()
+    quickState.isWaitingForWho = true
+
+    C_FriendList.SendWho(zone)
+
+    C_Timer.After(10.0, function()
+        if quickState.isScanning and quickState.isWaitingForWho and quickState.currentScanZone == zone then
+            quickState.isWaitingForWho = false
+            quickWhoListener:UnregisterEvent("WHO_LIST_UPDATE")
+            quickWhoListener:Hide()
+            if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+
+            quickState.quietZones = quickState.quietZones + 1
+            quickState.isScanning = false
+            UpdateQuickCandidateCard("Scan timed out. Click Next to continue.")
+        end
+    end)
+end
+
+quickUI.nextBtn:SetScript("OnClick", function()
+    if quickState.isWaitingForWho then return end
+
+    if EnsureQuickStateMatchesFilters() then
+        UpdateQuickCandidateCard("Filters changed. Rebuilding queue...")
+    end
+
+    if quickState.currentCandidate then
+        if #quickState.queue > 0 then
+            PromoteNextQuickCandidate()
+        else
+            quickState.currentCandidate = nil
+        end
+    elseif #quickState.queue > 0 then
+        PromoteNextQuickCandidate()
+    end
+
+    if not quickState.currentCandidate and #quickState.queue == 0 then
+        RequestQuickQueueRefill(QUICK_QUEUE_TARGET)
+        return
+    end
+
+
+    UpdateQuickCandidateCard()
+end)
+
+quickUI.whisperBtn:SetScript("OnClick", function()
+    local candidate = quickState.currentCandidate
+    if not candidate then return end
+    if not PlayerCanRecruitNow() then
+        UpdateQuickCandidateCard(RECRUIT_PERMISSION_REQUIRED_TEXT)
+        return
+    end
+
+    local sent = SendWhisperToPlayer(candidate.name, candidate.class)
+    if sent then
+        UpdateQuickCandidateCard("Whisper sent to " .. candidate.name)
+    end
+end)
+
+quickUI.inviteBtn:SetScript("OnClick", function()
+    local candidate = quickState.currentCandidate
+    if not candidate then return end
+    if not PlayerCanRecruitNow() then
+        UpdateQuickCandidateCard(RECRUIT_PERMISSION_REQUIRED_TEXT)
+        return
+    end
+
+    if C_GuildInfo and C_GuildInfo.Invite then C_GuildInfo.Invite(candidate.name)
+    else GuildInvite(candidate.name) end
+
+    historyDB[candidate.name] = {
+        time = time(),
+        action = "INVITED",
+        class = string.upper(candidate.class or "PRIEST"),
+        level = candidate.level
+    }
+
+    if settingsDB and settingsDB.stats then
+        settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1
+    end
+
+
+    UpdateQuickCandidateCard("Invitation sent to " .. candidate.name)
+end)
+
+UpdateQuickCandidateCard()
 scanLogic:RegisterEvent("CHAT_MSG_SYSTEM")
 scanLogic:RegisterEvent("CHAT_MSG_WHISPER")
 scanLogic:SetScript("OnEvent", function(self, event, ...)
@@ -2323,6 +3320,11 @@ ProcessNextScan = function()
 end
 
 function StartScanSequence()
+    if quickState.isScanning then
+        print("|cffff0000[Cogwheel]|r Quick Scanner is running. Please wait for it to complete.")
+        return
+    end
+
     -- Resume scan if in progress
     if isScanning and #scanQueue > 0 then
         scanBtn:Disable()
@@ -2367,18 +3369,31 @@ border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 border:SetSize(54, 54)
 border:SetPoint("TOPLEFT")
 
+local minimapWasDragging = false
+
 minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 minimapBtn:SetScript("OnClick", function(self, button)
+    if minimapWasDragging then
+        minimapWasDragging = false
+        return
+    end
+
     if button == "LeftButton" then
-        ToggleAddonWindow()
+        ShowAddonWindow(true)
+        if not welcomeFrame:IsShown() then
+            SetTab(1)
+        end
+    elseif button == "RightButton" then
+        OpenQuickScannerWindow()
     end
 end)
 
 minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:SetText("Cogwheel Recruiter")
-    GameTooltip:AddLine("Left-click to toggle window", 1, 1, 1)
-    GameTooltip:AddLine("Right-click to drag", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine("Left-click: Open Scanner Mode", 1, 1, 1)
+    GameTooltip:AddLine("Right-click: Open Quick Scanner Mode", 1, 1, 1)
+    GameTooltip:AddLine("Shift + Right-drag: Move minimap icon", 0.6, 0.6, 0.6)
     GameTooltip:Show()
 end)
 minimapBtn:SetScript("OnLeave", GameTooltip_Hide)
@@ -2394,6 +3409,11 @@ end
 minimapBtn:SetMovable(true)
 minimapBtn:RegisterForDrag("RightButton")
 minimapBtn:SetScript("OnDragStart", function(self)
+    if not IsShiftKeyDown() then
+        return
+    end
+
+    minimapWasDragging = true
     self:SetScript("OnUpdate", function(self)
         local mx, my = Minimap:GetCenter()
         local cx, cy = GetCursorPosition()
@@ -2421,7 +3441,4 @@ SlashCmdList["COGWHEELRECRUITER"] = function(msg)
 
     ShowAddonWindow(true)
 end
-
-
-
 
