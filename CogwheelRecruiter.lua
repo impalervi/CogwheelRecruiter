@@ -263,7 +263,7 @@ quickFooterFrame.text:SetText(string.format(
     coloredAuthor
 ))
 
-local FORCE_INVITE_PERMISSION_BYPASS = true -- Temporary debug bypass for invite-permission testing
+local FORCE_INVITE_PERMISSION_BYPASS = false -- Keep false for normal invite-permission behavior
 
 local function PlayerHasGuild()
     local guildName = GetGuildInfo("player")
