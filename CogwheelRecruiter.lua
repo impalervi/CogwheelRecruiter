@@ -53,7 +53,7 @@ local SPLASH_LOGO_CANDIDATES = {
     "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.tga",
     "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.png",
 }
-local DEBUG_ALWAYS_SHOW_WELCOME = true -- Temporary debug toggle: force welcome on every open
+local DEBUG_ALWAYS_SHOW_WELCOME = false -- Keep false for normal first-launch welcome behavior
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -263,7 +263,7 @@ quickFooterFrame.text:SetText(string.format(
     coloredAuthor
 ))
 
-local FORCE_INVITE_PERMISSION_BYPASS = true -- TODO: Set to false after invite-permission testing.
+local FORCE_INVITE_PERMISSION_BYPASS = false -- Keep false for normal invite-permission behavior
 
 local function PlayerHasGuild()
     local guildName = GetGuildInfo("player")
@@ -3811,7 +3811,4 @@ SlashCmdList["COGWHEELRECRUITER"] = function(msg)
 
     ShowAddonWindow(true)
 end
-
-
-
 
