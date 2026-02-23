@@ -1,0 +1,11 @@
+{
+  "wowDir": "D:\\Path\\To\\World of Warcraft\\_anniversary_",
+  "addonRelativePath": "Interface\\AddOns\\CogwheelRecruiter",
+  "include": [
+    "CogwheelRecruiter.lua",
+    "CogwheelRecruiter.toc",
+    "CogwheelRecruiter_Constants.lua",
+    "CogwheelRecruiter_Defaults.lua",
+    "Media"
+  ]
+}

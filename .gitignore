@@ -9,3 +9,5 @@ Thumbs.db
 # Temporary files
 *.bak
 *.tmp
+# Local deploy config
+deploy.config.json
