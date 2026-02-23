@@ -263,7 +263,7 @@ quickFooterFrame.text:SetText(string.format(
     coloredAuthor
 ))
 
-local FORCE_INVITE_PERMISSION_BYPASS = false -- Keep false for normal invite-permission behavior
+local FORCE_INVITE_PERMISSION_BYPASS = true -- Temporary debug bypass for invite-permission testing
 
 local function PlayerHasGuild()
     local guildName = GetGuildInfo("player")
@@ -291,7 +291,7 @@ local function PlayerCanInviteGuildMembers()
 end
 
 local function PlayerCanRecruitNow()
-    return PlayerHasGuild() and RawPlayerCanInviteGuildMembers()
+    return PlayerHasGuild() and PlayerCanInviteGuildMembers()
 end
 
 local welcomeFrame = CreateFrame("Frame", nil, mainFrame)
@@ -3811,4 +3811,3 @@ SlashCmdList["COGWHEELRECRUITER"] = function(msg)
 
     ShowAddonWindow(true)
 end
-
