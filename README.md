@@ -1,5 +1,10 @@
 # Cogwheel Recruiter
 
+<p align="center">
+  <img src="Media/CogwheelRecruiterLogoSimple_400x400.png" alt="Cogwheel Recruiter" width="260" />
+</p>
+
+
 Cogwheel Recruiter is a World of Warcraft guild recruitment addon for finding unguilded players, sending personalized outreach, tracking outcomes, and reviewing guild/member distribution data.
 
 ## Features
