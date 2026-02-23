@@ -4,7 +4,7 @@
 ## IconTexture: Interface\AddOns\CogwheelRecruiter\Media\CogwheelRecruiterIcon_64x64
 ## Author: ImpalerV (Marviy @ Nightslayer)
 ## Version: 1.0
-## SavedVariables: CogwheelRecruiterHistoryDB, CogwheelRecruiterSettingsDB, CogwheelRecruiterWhispersDB
+## SavedVariables: CogwheelRecruiterHistoryDB, CogwheelRecruiterSettingsDB, CogwheelRecruiterWhispersDB, CogwheelRecruiterAnalyticsDB
 
 CogwheelRecruiter_Constants.lua
 CogwheelRecruiter_Defaults.lua

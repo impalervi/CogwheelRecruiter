@@ -8,9 +8,12 @@ addonName = addonName or "CogwheelRecruiter"
 local historyDB -- Shortcut to CogwheelRecruiterHistoryDB
 local settingsDB -- Shortcut to CogwheelRecruiterSettingsDB
 local whispersDB -- Shortcut to CogwheelRecruiterWhispersDB
+local analyticsDB -- Shortcut to CogwheelRecruiterAnalyticsDB
 local UpdateMinimapPosition -- Forward declaration
 local UpdateWhispersList -- Forward declaration
 local UpdateTabButtons -- Forward declaration
+local UpdateStatsView -- Forward declaration
+local Analytics -- Forward declaration
 local StartWhispersTabFlash -- Forward declaration
 local SetTab -- Forward declaration
 local SetWelcomeMode -- Forward declaration
@@ -445,14 +448,16 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         if NS.EnsureDatabases then
-            historyDB, settingsDB, whispersDB = NS.EnsureDatabases()
+            historyDB, settingsDB, whispersDB, analyticsDB = NS.EnsureDatabases()
         else
             if CogwheelRecruiterHistoryDB == nil then CogwheelRecruiterHistoryDB = {} end
             if CogwheelRecruiterSettingsDB == nil then CogwheelRecruiterSettingsDB = {} end
             if CogwheelRecruiterWhispersDB == nil then CogwheelRecruiterWhispersDB = {} end
+            if CogwheelRecruiterAnalyticsDB == nil then CogwheelRecruiterAnalyticsDB = {} end
             historyDB = CogwheelRecruiterHistoryDB
             settingsDB = CogwheelRecruiterSettingsDB
             whispersDB = CogwheelRecruiterWhispersDB
+            analyticsDB = CogwheelRecruiterAnalyticsDB
         end
 
         if NS.ApplyDefaultSettings then
@@ -474,6 +479,14 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             if not settingsDB.welcomeTemplate then
                 settingsDB.welcomeTemplate = "Welcome to <guild>, <character>!"
             end
+        end
+
+        if not analyticsDB then
+            CogwheelRecruiterAnalyticsDB = CogwheelRecruiterAnalyticsDB or {}
+            analyticsDB = CogwheelRecruiterAnalyticsDB
+        end
+        if Analytics and Analytics.EnsureDefaults then
+            Analytics.EnsureDefaults()
         end
 
         if UpdateMinimapPosition then UpdateMinimapPosition() end
@@ -577,6 +590,114 @@ local function BuildWelcomeMessage(targetName)
     return tmpl
 end
 
+Analytics = {}
+
+function Analytics.EnsureDefaults()
+    if not analyticsDB then
+        return
+    end
+
+    if NS.EnsureAnalyticsDefaults then
+        NS.EnsureAnalyticsDefaults(analyticsDB, CLASS_LIST, NS.ZONE_CATEGORIES)
+        return
+    end
+
+    analyticsDB.whispered = tonumber(analyticsDB.whispered) or 0
+    analyticsDB.whispersAnswered = tonumber(analyticsDB.whispersAnswered) or 0
+    analyticsDB.invited = tonumber(analyticsDB.invited) or 0
+    analyticsDB.accepted = tonumber(analyticsDB.accepted) or 0
+    analyticsDB.invitesByClass = analyticsDB.invitesByClass or {}
+    analyticsDB.acceptedByClass = analyticsDB.acceptedByClass or {}
+    analyticsDB.invitesByLevel = analyticsDB.invitesByLevel or {}
+    analyticsDB.acceptedByLevel = analyticsDB.acceptedByLevel or {}
+    analyticsDB.pendingWhispers = analyticsDB.pendingWhispers or {}
+    analyticsDB.pendingInvites = analyticsDB.pendingInvites or {}
+end
+
+function Analytics.IncrementCounter(map, key, amount)
+    if not map or not key then return end
+    local delta = amount or 1
+    map[key] = (tonumber(map[key]) or 0) + delta
+end
+
+function Analytics.NormalizeClassTag(classToken)
+    local upper = string.upper(classToken or "PRIEST")
+    if upper == "" then upper = "PRIEST" end
+    return upper
+end
+
+function Analytics.GetLevelCategory(level)
+    if NS.GetLevelCategoryName then
+        return NS.GetLevelCategoryName(level, NS.ZONE_CATEGORIES)
+    end
+    return "Other"
+end
+
+function Analytics.RecordWhisperSent(targetName)
+    if not analyticsDB then return end
+    Analytics.EnsureDefaults()
+
+    analyticsDB.whispered = (analyticsDB.whispered or 0) + 1
+    analyticsDB.pendingWhispers[GetWhisperKey(targetName)] = true
+end
+
+function Analytics.RecordWhisperAnswered(sender)
+    if not analyticsDB then return end
+    Analytics.EnsureDefaults()
+
+    local key = GetWhisperKey(sender)
+    if analyticsDB.pendingWhispers[key] then
+        analyticsDB.whispersAnswered = (analyticsDB.whispersAnswered or 0) + 1
+        analyticsDB.pendingWhispers[key] = nil
+    end
+end
+
+function Analytics.RecordInviteSent(targetName, targetClass, targetLevel)
+    if not analyticsDB then return end
+    Analytics.EnsureDefaults()
+
+    local key = GetWhisperKey(targetName)
+    local classTag = Analytics.NormalizeClassTag(targetClass)
+    local levelCategory = Analytics.GetLevelCategory(targetLevel)
+
+    analyticsDB.invited = (analyticsDB.invited or 0) + 1
+    Analytics.IncrementCounter(analyticsDB.invitesByClass, classTag, 1)
+    Analytics.IncrementCounter(analyticsDB.invitesByLevel, levelCategory, 1)
+
+    analyticsDB.pendingInvites[key] = {
+        class = classTag,
+        level = targetLevel,
+        levelCategory = levelCategory,
+        time = time()
+    }
+end
+
+function Analytics.ClearPendingInvite(targetName)
+    if not analyticsDB then return end
+    Analytics.EnsureDefaults()
+    analyticsDB.pendingInvites[GetWhisperKey(targetName)] = nil
+end
+
+function Analytics.RecordInviteAccepted(targetName, fallbackClass, fallbackLevel, previousAction)
+    if not analyticsDB then return end
+    Analytics.EnsureDefaults()
+
+    local key = GetWhisperKey(targetName)
+    local pending = analyticsDB.pendingInvites[key]
+    local shouldCount = (pending ~= nil) or (previousAction == "INVITED")
+    if not shouldCount then
+        return
+    end
+
+    local classTag = Analytics.NormalizeClassTag((pending and pending.class) or fallbackClass)
+    local levelCategory = (pending and pending.levelCategory) or Analytics.GetLevelCategory((pending and pending.level) or fallbackLevel)
+
+    analyticsDB.accepted = (analyticsDB.accepted or 0) + 1
+    Analytics.IncrementCounter(analyticsDB.acceptedByClass, classTag, 1)
+    Analytics.IncrementCounter(analyticsDB.acceptedByLevel, levelCategory, 1)
+
+    analyticsDB.pendingInvites[key] = nil
+end
 local function SendDelayedWelcomeMessage(targetName)
     if not C_Timer or not C_Timer.After then
         return
@@ -621,6 +742,7 @@ local function SendWhisperToPlayer(targetName, targetClass)
         whispersDB[key].lastOutbound = msg
         whispersDB[key].lastOutboundTime = time()
     end
+    Analytics.RecordWhisperSent(targetName)
     return true
 end
 
@@ -1015,23 +1137,221 @@ reportLevelBtn:SetScript("OnClick", function()
     print("|cff00ff00[Cogwheel]|r Level distribution posted to guild chat.")
 end)
 
-local statInvitedText, statJoinedText
+do -- Stats Dashboard UI
+local statsScroll = CreateFrame("ScrollFrame", nil, statsView, "UIPanelScrollFrameTemplate")
+statsScroll:SetPoint("TOPLEFT", 0, -5)
+statsScroll:SetPoint("BOTTOMRIGHT", -25, 10)
 
-local function UpdateStatsView()
-    if not settingsDB or not settingsDB.stats then return end
-    if not statInvitedText then
-        -- Create elements on first load
-        local font = "GameFontNormalHuge"
-        statInvitedText = statsView:CreateFontString(nil, "OVERLAY", font)
-        statInvitedText:SetPoint("CENTER", 0, 40)
+local statsContent = CreateFrame("Frame", nil, statsScroll)
+statsContent:SetSize(460, 1)
+statsScroll:SetScrollChild(statsContent)
 
-        statJoinedText = statsView:CreateFontString(nil, "OVERLAY", font)
-        statJoinedText:SetPoint("CENTER", 0, -40)
-        statJoinedText:SetTextColor(0, 1, 0)
+local header = statsContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+header:SetPoint("TOPLEFT", 10, -10)
+header:SetText("Recruitment Performance")
+
+local totalsText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+totalsText:SetPoint("TOPLEFT", 10, -40)
+totalsText:SetWidth(440)
+totalsText:SetJustifyH("LEFT")
+totalsText:SetWordWrap(false)
+
+local ratesText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+ratesText:SetPoint("TOPLEFT", 10, -62)
+ratesText:SetWidth(440)
+ratesText:SetJustifyH("LEFT")
+ratesText:SetWordWrap(false)
+ratesText:SetTextColor(0.7, 0.9, 0.7)
+
+local classHeader = statsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+classHeader:SetPoint("TOPLEFT", 10, -92)
+classHeader:SetText("Per Class (Invites / Accepted / Acceptance Rate)")
+
+local classRows = {}
+local classStartY = -112
+
+for i, cls in ipairs(CLASS_LIST) do
+    local row = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row:SetPoint("TOPLEFT", 16, classStartY - ((i - 1) * 18))
+    row:SetWidth(430)
+    row:SetJustifyH("LEFT")
+    classRows[cls] = row
+end
+
+local levelHeaderY = classStartY - (#CLASS_LIST * 18) - 16
+local levelHeader = statsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+levelHeader:SetPoint("TOPLEFT", 10, levelHeaderY)
+levelHeader:SetText("Per Level Category (Invites / Accepted / Acceptance Rate)")
+
+local levelCategoryOrder = {}
+for _, cat in ipairs(ZONE_CATEGORIES) do
+    if cat.min and cat.max and cat.min > 0 then
+        table.insert(levelCategoryOrder, cat.name)
+    end
+end
+table.insert(levelCategoryOrder, "Other")
+
+local levelRows = {}
+local levelStartY = levelHeaderY - 20
+for i, levelName in ipairs(levelCategoryOrder) do
+    local row = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row:SetPoint("TOPLEFT", 16, levelStartY - ((i - 1) * 18))
+    row:SetWidth(430)
+    row:SetJustifyH("LEFT")
+    levelRows[levelName] = row
+end
+
+local extremesHeaderY = levelStartY - (#levelCategoryOrder * 18) - 16
+local extremesHeader = statsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+extremesHeader:SetPoint("TOPLEFT", 10, extremesHeaderY)
+extremesHeader:SetText("Acceptance Highlights")
+
+local bestClassText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+bestClassText:SetPoint("TOPLEFT", 16, extremesHeaderY - 22)
+bestClassText:SetWidth(430)
+bestClassText:SetJustifyH("LEFT")
+bestClassText:SetTextColor(0.6, 1.0, 0.6)
+
+local worstClassText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+worstClassText:SetPoint("TOPLEFT", 16, extremesHeaderY - 40)
+worstClassText:SetWidth(430)
+worstClassText:SetJustifyH("LEFT")
+worstClassText:SetTextColor(1.0, 0.65, 0.65)
+
+local bestLevelText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+bestLevelText:SetPoint("TOPLEFT", 16, extremesHeaderY - 62)
+bestLevelText:SetWidth(430)
+bestLevelText:SetJustifyH("LEFT")
+bestLevelText:SetTextColor(0.6, 1.0, 0.6)
+
+local worstLevelText = statsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+worstLevelText:SetPoint("TOPLEFT", 16, extremesHeaderY - 80)
+worstLevelText:SetWidth(430)
+worstLevelText:SetJustifyH("LEFT")
+worstLevelText:SetTextColor(1.0, 0.65, 0.65)
+
+statsContent:SetHeight((-extremesHeaderY) + 120)
+
+local function FormatRate(accepted, invited)
+    local inv = tonumber(invited) or 0
+    local acc = tonumber(accepted) or 0
+    if inv <= 0 then
+        return "n/a"
+    end
+    return string.format("%.1f%%", (acc / inv) * 100)
+end
+
+local function GetClassDisplayName(classTag)
+    return NormalizeClassName(classTag)
+end
+
+local function FindExtremes(keys, invitesBy, acceptedBy, labelFn)
+    local bestKey, bestRate = nil, -1
+    local worstKey, worstRate = nil, 2
+
+    for _, key in ipairs(keys) do
+        local invites = tonumber(invitesBy[key]) or 0
+        local accepted = tonumber(acceptedBy[key]) or 0
+        if invites > 0 then
+            local rate = accepted / invites
+            if rate > bestRate then
+                bestRate = rate
+                bestKey = key
+            end
+            if rate < worstRate then
+                worstRate = rate
+                worstKey = key
+            end
+        end
     end
 
-    statInvitedText:SetText("Total Invited: " .. (settingsDB.stats.invited or 0))
-    statJoinedText:SetText("Total Joined: " .. (settingsDB.stats.joined or 0))
+    if not bestKey then
+        return "No invite data yet.", "No invite data yet."
+    end
+
+    local bestLabel = labelFn(bestKey)
+    local worstLabel = labelFn(worstKey)
+    local bestText = string.format("%s (%s)", bestLabel, FormatRate(tonumber(acceptedBy[bestKey]) or 0, tonumber(invitesBy[bestKey]) or 0))
+    local worstText = string.format("%s (%s)", worstLabel, FormatRate(tonumber(acceptedBy[worstKey]) or 0, tonumber(invitesBy[worstKey]) or 0))
+    return bestText, worstText
+end
+
+UpdateStatsView = function()
+    if not analyticsDB then
+        totalsText:SetText("No analytics data available yet.")
+        ratesText:SetText("")
+        return
+    end
+
+    Analytics.EnsureDefaults()
+
+    local whispered = tonumber(analyticsDB.whispered) or 0
+    local answered = tonumber(analyticsDB.whispersAnswered) or 0
+    local invited = tonumber(analyticsDB.invited) or 0
+    local accepted = tonumber(analyticsDB.accepted) or 0
+
+    totalsText:SetText(string.format(
+        "Whispered: %d | Answered: %d | Invited: %d | Accepted: %d",
+        whispered,
+        answered,
+        invited,
+        accepted
+    ))
+
+    ratesText:SetText(string.format(
+        "Reply Rate: %s   |   Overall Acceptance Rate: %s",
+        FormatRate(answered, whispered),
+        FormatRate(accepted, invited)
+    ))
+
+    local invitesByClass = analyticsDB.invitesByClass or {}
+    local acceptedByClass = analyticsDB.acceptedByClass or {}
+
+    for _, cls in ipairs(CLASS_LIST) do
+        local invitesCount = tonumber(invitesByClass[cls]) or 0
+        local acceptedCount = tonumber(acceptedByClass[cls]) or 0
+        local row = classRows[cls]
+        local color = RAID_CLASS_COLORS[cls]
+        if color then
+            row:SetTextColor(color.r, color.g, color.b)
+        else
+            row:SetTextColor(0.9, 0.9, 0.9)
+        end
+
+        row:SetText(string.format(
+            "%s - Invites: %d  Accepted: %d  Rate: %s",
+            GetClassDisplayName(cls),
+            invitesCount,
+            acceptedCount,
+            FormatRate(acceptedCount, invitesCount)
+        ))
+    end
+
+    local invitesByLevel = analyticsDB.invitesByLevel or {}
+    local acceptedByLevel = analyticsDB.acceptedByLevel or {}
+
+    for _, levelName in ipairs(levelCategoryOrder) do
+        local invitesCount = tonumber(invitesByLevel[levelName]) or 0
+        local acceptedCount = tonumber(acceptedByLevel[levelName]) or 0
+        local row = levelRows[levelName]
+        row:SetTextColor(0.9, 0.9, 0.9)
+        row:SetText(string.format(
+            "%s - Invites: %d  Accepted: %d  Rate: %s",
+            levelName,
+            invitesCount,
+            acceptedCount,
+            FormatRate(acceptedCount, invitesCount)
+        ))
+    end
+
+    local bestClass, worstClass = FindExtremes(CLASS_LIST, invitesByClass, acceptedByClass, GetClassDisplayName)
+    bestClassText:SetText("Highest Class Acceptance: " .. bestClass)
+    worstClassText:SetText("Lowest Class Acceptance: " .. worstClass)
+
+    local bestLevel, worstLevel = FindExtremes(levelCategoryOrder, invitesByLevel, acceptedByLevel, function(key) return key end)
+    bestLevelText:SetText("Highest Level Category Acceptance: " .. bestLevel)
+    worstLevelText:SetText("Lowest Level Category Acceptance: " .. worstLevel)
+end
 end
 
 SetTab = function(id)
@@ -1631,6 +1951,7 @@ local function UpdateScanList(results)
                     class = string.upper(data.class or "PRIEST"),
                     level = data.level
                 }
+                Analytics.RecordInviteSent(data.name, data.class, data.level)
 
                 -- Update Stats
                 if settingsDB.stats then settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1 end
@@ -1769,6 +2090,7 @@ function UpdateHistoryList()
 
                 historyDB[name].time = time()
                 historyDB[name].action = "INVITED"
+                Analytics.RecordInviteSent(name, historyDB[name].class, historyDB[name].level)
                 UpdateHistoryList()
             end)
         end
@@ -1884,6 +2206,7 @@ UpdateWhispersList = function()
             historyDB[item.name].time = time()
             historyDB[item.name].action = "INVITED"
             historyDB[item.name].class = historyDB[item.name].class or "PRIEST"
+            Analytics.RecordInviteSent(item.name, historyDB[item.name].class, historyDB[item.name].level)
             if settingsDB.stats then settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1 end
             item.data.invited = true
 
@@ -3120,6 +3443,7 @@ quickUI.inviteBtn:SetScript("OnClick", function()
         class = string.upper(candidate.class or "PRIEST"),
         level = candidate.level
     }
+    Analytics.RecordInviteSent(candidate.name, candidate.class, candidate.level)
 
     if settingsDB and settingsDB.stats then
         settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1
@@ -3136,11 +3460,17 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
     if event == "CHAT_MSG_WHISPER" then
         local msg, sender = ...
         local key = GetWhisperKey(sender)
-        if key and key ~= "" and whispersDB and whispersDB[key] and whispersDB[key].lastOutbound then
-            whispersDB[key].lastInbound = msg
-            whispersDB[key].lastInboundTime = time()
-            whispersDB[key].sender = sender
-            whispersDB[key].displayName = whispersDB[key].displayName or GetShortName(sender)
+        local hasTrackedOutbound = analyticsDB and analyticsDB.pendingWhispers and analyticsDB.pendingWhispers[key]
+
+        if key and key ~= "" and ((whispersDB and whispersDB[key] and whispersDB[key].lastOutbound) or hasTrackedOutbound) then
+            if whispersDB then
+                whispersDB[key] = whispersDB[key] or {}
+                whispersDB[key].lastInbound = msg
+                whispersDB[key].lastInboundTime = time()
+                whispersDB[key].sender = sender
+                whispersDB[key].displayName = whispersDB[key].displayName or GetShortName(sender)
+            end
+            Analytics.RecordWhisperAnswered(sender)
             if StartWhispersTabFlash and currentTab ~= 6 then StartWhispersTabFlash() end
             if whispersView:IsVisible() and UpdateWhispersList then UpdateWhispersList() end
         end
@@ -3153,12 +3483,14 @@ scanLogic:SetScript("OnEvent", function(self, event, ...)
     if declinedName and historyDB[declinedName] then
         historyDB[declinedName].action = "DECLINED"
         historyDB[declinedName].time = time()
+        Analytics.ClearPendingInvite(declinedName)
         print("|cffff0000[Cogwheel]|r Detected decline: " .. declinedName)
     end
 
     local joinedName = string.match(msg, "^(.*) has joined the guild")
     if joinedName then
         local existing = historyDB[joinedName] or {}
+        Analytics.RecordInviteAccepted(joinedName, existing.class, existing.level, existing.action)
         historyDB[joinedName] = {
             action = "JOINED",
             time = time(),
@@ -3441,4 +3773,6 @@ SlashCmdList["COGWHEELRECRUITER"] = function(msg)
 
     ShowAddonWindow(true)
 end
+
+
 
