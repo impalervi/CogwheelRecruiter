@@ -11,3 +11,4 @@ Thumbs.db
 *.tmp
 # Local deploy config
 deploy.config.json
+*.zip
