@@ -785,14 +785,26 @@ quickView:Hide()
 
 local gsTitle = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 gsTitle:SetPoint("TOPLEFT", 20, -15)
-gsTitle:SetText(string.format("Active Guild Members (Last %d Days)", ACTIVE_MEMBER_WINDOW_DAYS))
+gsTitle:SetText("Guild Overview")
+local gsSummaryValues = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+gsSummaryValues:SetPoint("TOPLEFT", 20, -46)
+gsSummaryValues:SetWidth(460)
+gsSummaryValues:SetJustifyH("LEFT")
+gsSummaryValues:SetTextColor(0.85, 0.85, 0.85)
+
+local gsActiveScopeNote = guildStatsView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+gsActiveScopeNote:SetPoint("TOPLEFT", 20, -74)
+gsActiveScopeNote:SetWidth(460)
+gsActiveScopeNote:SetJustifyH("LEFT")
+gsActiveScopeNote:SetTextColor(0.72, 0.88, 0.72)
+gsActiveScopeNote:SetText(string.format("Class and level distributions are calculated from members active in the past %d days.", ACTIVE_MEMBER_WINDOW_DAYS))
 
 -- Dropdowns for Stats
 local currentStatsMode = "CLASS" -- "CLASS" or "LEVEL"
 local currentVisMode = "BAR" -- "MOSAIC" or "BAR"
 
 guildStatsView.statsTypeDD = CreateFrame("Frame", "CogwheelRecruiterStatsTypeDD", guildStatsView, "UIDropDownMenuTemplate")
-guildStatsView.statsTypeDD:SetPoint("TOPLEFT", 0, -35)
+guildStatsView.statsTypeDD:SetPoint("TOPLEFT", 0, -98)
 UIDropDownMenu_SetWidth(guildStatsView.statsTypeDD, 100)
 UIDropDownMenu_Initialize(guildStatsView.statsTypeDD, function(self, level)
     local info = UIDropDownMenu_CreateInfo()
@@ -826,7 +838,7 @@ end)
 UIDropDownMenu_SetText(guildStatsView.statsVisDD, "Stacked Bar")
 
 local gsContainer = CreateFrame("Frame", nil, guildStatsView)
-gsContainer:SetPoint("TOPLEFT", 20, -80)
+gsContainer:SetPoint("TOPLEFT", 20, -142)
 gsContainer:SetPoint("BOTTOMRIGHT", -20, 48)
 
 -- Helper: Get Class Counts (Shared by Stats and Settings)
@@ -976,6 +988,32 @@ end
 
 UpdateGuildStats = function()
     if not guildStatsView:IsVisible() then return end
+
+    local guildName = GetGuildInfo("player") or "No Guild"
+    local rosterSize = GetNumGuildMembers() or 0
+    local totalMembers = 0
+    local activeMembers = 0
+
+    for i=1, rosterSize do
+        local name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
+        if name then
+            totalMembers = totalMembers + 1
+            local active = online
+            if not active then
+                local y, m, d = GetGuildRosterLastOnline(i)
+                if y and (y == 0 and m == 0 and d <= ACTIVE_MEMBER_WINDOW_DAYS) then active = true end
+            end
+            if active then activeMembers = activeMembers + 1 end
+        end
+    end
+
+    gsSummaryValues:SetText(string.format(
+        "Guild: |cffFFD100%s|r  |  Characters: |cffffffff%d|r  |  Active (%d days): |cff6fdc6f%d|r",
+        guildName,
+        totalMembers,
+        ACTIVE_MEMBER_WINDOW_DAYS,
+        activeMembers
+    ))
 
     local counts, total
     local colorMap = {}
@@ -3773,6 +3811,7 @@ SlashCmdList["COGWHEELRECRUITER"] = function(msg)
 
     ShowAddonWindow(true)
 end
+
 
 
 
