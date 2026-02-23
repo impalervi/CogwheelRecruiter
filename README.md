@@ -48,6 +48,26 @@ Main pages:
 - `Stats`: recruitment performance metrics
 - `Guild`: guild composition and active-member distribution
 
+## Screenshots
+
+### Welcome
+
+![Welcome Screen](Screenshots/welcome_screen.png)
+
+### Scanner
+
+![Main Scanner Window](Screenshots/main_scanner_window.png)
+![Main Scanner Results](Screenshots/main_scanner_results.png)
+
+### Quick Scanner
+
+![Quick Scanner Results](Screenshots/quick_scanner_results.png)
+
+### Filters and Settings
+
+![Filters](Screenshots/filters.png)
+![Settings](Screenshots/settings.png)
+
 ## Installation
 
 Copy this addon folder into your WoW AddOns directory:
