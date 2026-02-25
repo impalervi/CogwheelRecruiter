@@ -12,6 +12,5 @@ Thumbs.db
 # Local deploy config
 deploy.config.json
 *.zip
-.plans/*
-!.plans/
-!.plans/modularization-plan.md
+.plans/
+
