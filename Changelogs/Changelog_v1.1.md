@@ -1,4 +1,4 @@
-# Cogwheel Recruiter - Changelog v1.2
+# Cogwheel Recruiter - Changelog v1.1
 
 ## Highlights
 - Optimized core logic through broad modularization of the addon runtime and UI orchestration.
