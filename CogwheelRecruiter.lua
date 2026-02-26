@@ -34,6 +34,7 @@ local UpdateWelcomeState -- Forward declaration
 local ShowAddonWindow -- Forward declaration
 local OpenQuickScannerWindow -- Forward declaration
 local ToggleAddonWindow -- Forward declaration
+local StartScanSequence -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
 local ACTIVE_MEMBER_WINDOW_DAYS = 7
@@ -882,7 +883,7 @@ quickActionHandlers.onInvite = function()
     end
 end
 
-function StartScanSequence()
+StartScanSequence = function()
     if scanController and scanController.StartScanSequence then
         scanController.StartScanSequence()
     end
