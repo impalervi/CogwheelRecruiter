@@ -97,6 +97,25 @@ Example:
     "CogwheelRecruiter.toc",
     "CogwheelRecruiter_Constants.lua",
     "CogwheelRecruiter_Defaults.lua",
+    "CogwheelRecruiter_Utils.lua",
+    "CogwheelRecruiter_Analytics.lua",
+    "CogwheelRecruiter_Permissions.lua",
+    "CogwheelRecruiter_Messaging.lua",
+    "CogwheelRecruiter_QuickScanner.lua",
+    "CogwheelRecruiter_Scanner.lua",
+    "CogwheelRecruiter_ScannerView.lua",
+    "CogwheelRecruiter_Minimap.lua",
+    "CogwheelRecruiter_FrameShell.lua",
+    "CogwheelRecruiter_WindowRouting.lua",
+    "CogwheelRecruiter_WhispersFlash.lua",
+    "CogwheelRecruiter_WhispersInbox.lua",
+    "CogwheelRecruiter_WhispersView.lua",
+    "CogwheelRecruiter_TemplatePreview.lua",
+    "CogwheelRecruiter_StatsView.lua",
+    "CogwheelRecruiter_GuildView.lua",
+    "CogwheelRecruiter_SettingsFiltersView.lua",
+    "CogwheelRecruiter_HistoryView.lua",
+    "CogwheelRecruiter_GuildReports.lua",
     "Media"
   ]
 }
@@ -153,4 +172,7 @@ History retention pruning affects invite history entries only. Analytics are tra
 ## Author
 
 ImpalerV (Marviy @ Nightslayer)
+
+
+
 

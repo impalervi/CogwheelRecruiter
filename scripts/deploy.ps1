@@ -58,6 +58,33 @@ if ($includePaths.Count -eq 0) {
         'CogwheelRecruiter.toc',
         'CogwheelRecruiter_Constants.lua',
         'CogwheelRecruiter_Defaults.lua',
+        'CogwheelRecruiter_Utils.lua',
+        'CogwheelRecruiter_Analytics.lua',
+        'CogwheelRecruiter_Permissions.lua',
+        'CogwheelRecruiter_Messaging.lua',
+        'CogwheelRecruiter_QuickScanner.lua',
+        'CogwheelRecruiter_Scanner.lua',
+        'CogwheelRecruiter_Bootstrap.lua',
+        'CogwheelRecruiter_ScanController.lua',
+        'CogwheelRecruiter_ScannerQuickViewsController.lua',
+        'CogwheelRecruiter_ScannerView.lua',
+        'CogwheelRecruiter_QuickScannerView.lua',
+        'CogwheelRecruiter_Minimap.lua',
+        'CogwheelRecruiter_FrameShell.lua',
+        'CogwheelRecruiter_WindowRouting.lua',
+        'CogwheelRecruiter_TabShellController.lua',
+        'CogwheelRecruiter_TabController.lua',
+        'CogwheelRecruiter_WhispersFlash.lua',
+        'CogwheelRecruiter_WhispersInbox.lua',
+        'CogwheelRecruiter_HistoryWhispersController.lua',
+        'CogwheelRecruiter_SettingsStatsGuildController.lua',
+        'CogwheelRecruiter_WhispersView.lua',
+        'CogwheelRecruiter_TemplatePreview.lua',
+        'CogwheelRecruiter_StatsView.lua',
+        'CogwheelRecruiter_GuildView.lua',
+        'CogwheelRecruiter_SettingsFiltersView.lua',
+        'CogwheelRecruiter_HistoryView.lua',
+        'CogwheelRecruiter_GuildReports.lua',
         'Media'
     )
 }
@@ -90,3 +117,9 @@ foreach ($relativePath in $includePaths) {
 }
 
 Write-Host 'Deployment complete.'
+
+
+
+
+
+

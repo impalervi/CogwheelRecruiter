@@ -76,7 +76,7 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
     if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
     if not settingsDB.whisperTemplate then
-        settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community while you continue your adventure leveling up?"
+        settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community, while you continue your adventure leveling up?"
     end
     if settingsDB.autoWelcomeEnabled == nil then settingsDB.autoWelcomeEnabled = false end
     if not settingsDB.welcomeTemplate then
