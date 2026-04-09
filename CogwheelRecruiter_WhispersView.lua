@@ -19,16 +19,24 @@ function WhispersView.Create(context)
 
         row.nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         row.nameText:SetPoint("TOPLEFT", 5, -3)
-        row.nameText:SetWidth(140)
+        row.nameText:SetWidth(120)
         row.nameText:SetJustifyH("LEFT")
 
         row.timeText = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        row.timeText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2)
-        row.timeText:SetWidth(140)
+        row.timeText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -1)
+        row.timeText:SetWidth(120)
         row.timeText:SetJustifyH("LEFT")
 
+        row.guildTag = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        row.guildTag:SetPoint("TOPLEFT", row.timeText, "BOTTOMLEFT", 0, -1)
+        row.guildTag:SetWidth(120)
+        row.guildTag:SetJustifyH("LEFT")
+        row.guildTag:SetTextColor(0.4, 0.7, 0.4)
+        if row.guildTag.SetWordWrap then row.guildTag:SetWordWrap(false) end
+        row.guildTag:SetText("")
+
         row.replyText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.replyText:SetPoint("TOPLEFT", 150, -5)
+        row.replyText:SetPoint("TOPLEFT", 130, -5)
         row.replyText:SetPoint("BOTTOMRIGHT", -170, 5)
         row.replyText:SetJustifyH("LEFT")
         row.replyText:SetJustifyV("TOP")
@@ -40,6 +48,15 @@ function WhispersView.Create(context)
         row.inviteBtn:SetNormalFontObject("GameFontNormalSmall")
         row.inviteBtn:SetHighlightFontObject("GameFontHighlightSmall")
         row.inviteBtn:SetDisabledFontObject("GameFontDisableSmall")
+
+        row.checkInviteBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
+        row.checkInviteBtn:SetSize(75, 20)
+        row.checkInviteBtn:SetPoint("TOPRIGHT", -85, -5)
+        row.checkInviteBtn:SetText("Invite")
+        row.checkInviteBtn:SetNormalFontObject("GameFontNormalSmall")
+        row.checkInviteBtn:SetHighlightFontObject("GameFontHighlightSmall")
+        row.checkInviteBtn:SetDisabledFontObject("GameFontDisableSmall")
+        row.checkInviteBtn:Hide()
 
         row.clearBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
         row.clearBtn:SetSize(75, 20)
@@ -93,30 +110,64 @@ function WhispersView.Create(context)
             row.timeText:SetText(date("%m/%d %H:%M", item.data.lastInboundTime or time()))
             row.replyText:SetText(item.data.lastInbound)
 
+            local isGuilded = item.data.guild and item.data.guild ~= ""
+            if isGuilded then
+                local guildDisplay = item.data.guild
+                if string.len(guildDisplay) > 20 then
+                    guildDisplay = string.sub(guildDisplay, 1, 19) .. "..."
+                end
+                row.guildTag:SetText("<" .. guildDisplay .. ">")
+                row.guildTag:Show()
+            else
+                row.guildTag:SetText("")
+                row.guildTag:Hide()
+            end
+
             local alreadyInvited = item.data.invited == true
-            if alreadyInvited then
+            local function SetInviteBtnHandler()
+                row.inviteBtn:SetScript("OnClick", function(self)
+                    if context.onInvite then
+                        local ok = context.onInvite(item, self)
+                        if ok == false then
+                            return
+                        end
+                    end
+
+                    item.data.invited = true
+                    self:SetText("Invited")
+                    self:Disable()
+                    self:SetAlpha(0.6)
+                    row.checkInviteBtn:Hide()
+                end)
+            end
+
+            if isGuilded and not alreadyInvited then
+                row.inviteBtn:Hide()
+                row.checkInviteBtn:Show()
+                row.checkInviteBtn:Enable()
+                row.checkInviteBtn:SetAlpha(1.0)
+                row.checkInviteBtn:SetText("Invite")
+
+                row.checkInviteBtn:SetScript("OnClick", function(self)
+                    if context.onCheckAndInvite then
+                        context.onCheckAndInvite(item, self)
+                    end
+                end)
+            elseif alreadyInvited then
+                row.checkInviteBtn:Hide()
+                row.inviteBtn:Show()
                 row.inviteBtn:SetText("Invited")
                 row.inviteBtn:Disable()
                 row.inviteBtn:SetAlpha(0.6)
+                SetInviteBtnHandler()
             else
+                row.checkInviteBtn:Hide()
+                row.inviteBtn:Show()
                 row.inviteBtn:SetText("Invite")
                 row.inviteBtn:Enable()
                 row.inviteBtn:SetAlpha(1.0)
+                SetInviteBtnHandler()
             end
-
-            row.inviteBtn:SetScript("OnClick", function(self)
-                if context.onInvite then
-                    local ok = context.onInvite(item, self)
-                    if ok == false then
-                        return
-                    end
-                end
-
-                item.data.invited = true
-                self:SetText("Invited")
-                self:Disable()
-                self:SetAlpha(0.6)
-            end)
 
             row.clearBtn:SetScript("OnClick", function()
                 if context.onClear then

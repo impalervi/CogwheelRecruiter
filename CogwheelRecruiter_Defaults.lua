@@ -82,6 +82,12 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
     if not settingsDB.welcomeTemplate then
         settingsDB.welcomeTemplate = "Welcome to <guild>, <character>!"
     end
+    if settingsDB.showGuildedPlayers == nil then settingsDB.showGuildedPlayers = false end
+    if not settingsDB.guildedWhisperTemplate then
+        settingsDB.guildedWhisperTemplate =
+            "Hi <character>, I see you're in <targetguild>. We're building something special"
+            .. " over at <guild> and would love a <class> like you. Interested in hearing more?"
+    end
 end
 
 function NS.PruneHistory(historyDB, retentionDays)

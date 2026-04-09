@@ -121,6 +121,11 @@ function HistoryWhispersController.Create(context)
                 end
                 return false
             end,
+            onCheckAndInvite = function(item, button)
+                if context.onCheckAndInvite then
+                    context.onCheckAndInvite(item, button)
+                end
+            end,
             onClear = function(item)
                 if context.onWhisperClear then
                     context.onWhisperClear(item)

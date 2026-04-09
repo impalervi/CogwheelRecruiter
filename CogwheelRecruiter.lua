@@ -34,6 +34,7 @@ local UpdateWelcomeState -- Forward declaration
 local ShowAddonWindow -- Forward declaration
 local OpenQuickScannerWindow -- Forward declaration
 local ToggleAddonWindow -- Forward declaration
+local StartScanSequence -- Forward declaration
 local MAX_WHISPER_CHARS = 255
 local MAX_PLAYER_LEVEL = 70
 local ACTIVE_MEMBER_WINDOW_DAYS = 7
@@ -71,6 +72,7 @@ local SPLASH_LOGO_CANDIDATES = {
 local DEBUG_ALWAYS_SHOW_WELCOME = false -- Keep false for normal first-launch welcome behavior
 local DEBUG_ON_SELF = false -- TEMP DEBUG: route addon whispers/reports to self; MUST disable before merge
 local DEBUG_RESET_WELCOME_ON_LOAD = false -- TEMP DEBUG: reset splash screen trigger on load; MUST disable before merge
+local DEBUG_SKIP_INVITE = false -- TEMP DEBUG: print invite instead of sending; MUST disable before merge
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -175,6 +177,18 @@ local function PlayerCanInviteGuildMembers()
         return true
     end
     return RawPlayerCanInviteGuildMembers()
+end
+
+local function DoGuildInvite(playerName)
+    if DEBUG_SKIP_INVITE then
+        print("|cffffcc00[Cogwheel DEBUG]|r Would invite: " .. tostring(playerName) .. " (invite skipped)")
+        return
+    end
+    if C_GuildInfo and C_GuildInfo.Invite then
+        C_GuildInfo.Invite(playerName)
+    else
+        GuildInvite(playerName)
+    end
 end
 
 local function PlayerCanRecruitNow()
@@ -390,6 +404,46 @@ local function SendWhisperToPlayer(targetName, targetClass)
     return false
 end
 
+local function BuildGuildedWhisperMessage(targetName, targetClass, targetGuild)
+    local tmpl = (settingsDB and settingsDB.guildedWhisperTemplate)
+        or "Hi <character>, would you be interested in joining <guild>?"
+    local guildName = GetGuildInfo("player") or "our guild"
+    if Messaging.BuildWhisperMessage then
+        return Messaging.BuildWhisperMessage(
+            tmpl, targetName, targetClass, guildName, targetGuild
+        )
+    end
+    return tmpl
+end
+
+local function SendGuildedWhisperToPlayer(targetName, targetClass, targetGuild)
+    if Messaging.SendWhisperToPlayer then
+        local sent = Messaging.SendWhisperToPlayer({
+            targetName = targetName,
+            targetClass = targetClass,
+            maxWhisperChars = MAX_WHISPER_CHARS,
+            buildWhisperMessage = function(name, cls)
+                return BuildGuildedWhisperMessage(name, cls, targetGuild)
+            end,
+            print = print,
+            whispersDB = whispersDB,
+            getWhisperKey = GetWhisperKey,
+            getShortName = GetShortName,
+            recordWhisperSent = Analytics.RecordWhisperSent,
+            handleInboundWhisper = NS.HandleInboundWhisper,
+            debugReply = "[debug] Interesting, tell me more about your guild!",
+        })
+        if sent and whispersDB then
+            local key = GetWhisperKey(targetName)
+            if whispersDB[key] then
+                whispersDB[key].guild = targetGuild
+            end
+        end
+        return sent
+    end
+    return false
+end
+
 -- =============================================================
 -- 3. TABS SETUP
 -- =============================================================
@@ -455,6 +509,7 @@ if NS.SettingsStatsGuildController and NS.SettingsStatsGuildController.Create th
         maxWhisperChars = MAX_WHISPER_CHARS,
         buildWhisperPreview = BuildWhisperMessage,
         buildWelcomePreview = BuildWelcomeMessage,
+        buildGuildedWhisperPreview = BuildGuildedWhisperMessage,
         onSaveFilters = function()
             if NS.ResetQuickScanState then
                 NS.ResetQuickScanState()
@@ -643,30 +698,34 @@ if NS.ScannerQuickViewsController and NS.ScannerQuickViewsController.Create then
             print("|cffff0000[Cogwheel]|r " .. RECRUIT_PERMISSION_REQUIRED_TEXT)
         end,
         onScannerWhisper = function(data)
-            local sent = SendWhisperToPlayer(data.name, data.class)
+            local isGuilded = data.guild and data.guild ~= ""
+            local sent
+            if isGuilded then
+                sent = SendGuildedWhisperToPlayer(data.name, data.class, data.guild)
+            else
+                sent = SendWhisperToPlayer(data.name, data.class)
+            end
             if sent then
                 print("|cff00ff00[Cogwheel]|r Whisper sent to " .. data.name)
             end
             return sent
         end,
         onScannerInvite = function(data, button)
-            if C_GuildInfo and C_GuildInfo.Invite then
-                C_GuildInfo.Invite(data.name)
-            else
-                GuildInvite(data.name)
-            end
+            DoGuildInvite(data.name)
 
             if button then
                 button:SetText("Sent")
                 button:Disable()
             end
 
-            historyDB[data.name] = {
-                time = time(),
-                action = "INVITED",
-                class = string.upper(data.class or "PRIEST"),
-                level = data.level
-            }
+            if historyDB then
+                historyDB[data.name] = {
+                    time = time(),
+                    action = "INVITED",
+                    class = string.upper(data.class or "PRIEST"),
+                    level = data.level
+                }
+            end
             Analytics.RecordInviteSent(data.name, data.class, data.level)
 
             if settingsDB and settingsDB.stats then
@@ -746,8 +805,7 @@ if NS.HistoryWhispersController and NS.HistoryWhispersController.Create then
             print("History Cleared.")
         end,
         onHistoryReinvite = function(name)
-            if C_GuildInfo and C_GuildInfo.Invite then C_GuildInfo.Invite(name)
-            else GuildInvite(name) end
+            DoGuildInvite(name)
 
             historyDB[name] = historyDB[name] or {}
             historyDB[name].time = time()
@@ -755,21 +813,146 @@ if NS.HistoryWhispersController and NS.HistoryWhispersController.Create then
             Analytics.RecordInviteSent(name, historyDB[name].class, historyDB[name].level)
         end,
         onWhisperInvite = function(item)
-            if C_GuildInfo and C_GuildInfo.Invite then
-                C_GuildInfo.Invite(item.name)
-            else
-                GuildInvite(item.name)
+            if not PlayerCanRecruitNow() then
+                print("|cffff0000[Cogwheel]|r " .. RECRUIT_PERMISSION_REQUIRED_TEXT)
+                return false
             end
+
+            DoGuildInvite(item.name)
 
             historyDB[item.name] = historyDB[item.name] or {}
             historyDB[item.name].time = time()
             historyDB[item.name].action = "INVITED"
             historyDB[item.name].class = historyDB[item.name].class or "PRIEST"
-            Analytics.RecordInviteSent(item.name, historyDB[item.name].class, historyDB[item.name].level)
+            Analytics.RecordInviteSent(
+                item.name, historyDB[item.name].class, historyDB[item.name].level
+            )
             if settingsDB and settingsDB.stats then
                 settingsDB.stats.invited = (settingsDB.stats.invited or 0) + 1
             end
             return true
+        end,
+        onCheckAndInvite = function(item, button)
+            if not PlayerCanRecruitNow() then
+                print("|cffff0000[Cogwheel]|r " .. RECRUIT_PERMISSION_REQUIRED_TEXT)
+                return
+            end
+
+            local playerName = item.name
+            local whoQuery = 'n-"' .. playerName .. '"'
+
+            if button then
+                button:SetText("Checking...")
+                button:Disable()
+            end
+
+            C_FriendList.SendWho(whoQuery)
+
+            C_Timer.After(1.5, function()
+                local num = C_FriendList.GetNumWhoResults() or 0
+
+                local stillGuilded = true
+                local foundGuild = ""
+                local foundClass = ""
+                local found = false
+                for i = 1, num do
+                    local entryName, entryGuild, entryClass
+                    local info = C_FriendList and C_FriendList.GetWhoInfo
+                        and C_FriendList.GetWhoInfo(i)
+                    if type(info) == "table" then
+                        entryName = info.fullName or info.name
+                        entryGuild = info.fullGuildName or info.guild or ""
+                        entryClass = info.filename or info.classFilename or ""
+                    else
+                        if C_FriendList and C_FriendList.GetWhoInfo then
+                            entryName, entryGuild, _, _, _, _, entryClass =
+                                C_FriendList.GetWhoInfo(i)
+                        end
+                        if not entryName and GetWhoInfo then
+                            entryName, entryGuild, _, _, _, _, entryClass =
+                                GetWhoInfo(i)
+                        end
+                        entryGuild = entryGuild or ""
+                        entryClass = entryClass or ""
+                    end
+
+                    if entryName then
+                        local shortName = (entryName:match("^[^-]+") or entryName)
+                        if shortName == playerName then
+                            found = true
+                            stillGuilded = (entryGuild or "") ~= ""
+                            foundGuild = entryGuild or ""
+                            foundClass = entryClass or ""
+                            break
+                        end
+                    end
+                end
+
+                if not found then
+                    if button then
+                        button:SetText("Not Found")
+                        button:Disable()
+                        C_Timer.After(5, function()
+                            if button then
+                                button:SetText("Invite")
+                                button:Enable()
+                            end
+                        end)
+                    end
+                    print("|cffff0000[Cogwheel]|r " .. playerName
+                        .. " was not found. They may be offline or on a different realm.")
+                elseif stillGuilded then
+                    if button then
+                        button:SetText("Still in Guild")
+                        button:Disable()
+                        C_Timer.After(5, function()
+                            if button then
+                                button:SetText("Invite")
+                                button:Enable()
+                            end
+                        end)
+                    end
+                    local classTag = string.upper(foundClass ~= "" and foundClass or "PRIEST")
+                    local classHex = "ffffffff"
+                    if RAID_CLASS_COLORS and RAID_CLASS_COLORS[classTag] then
+                        local c = RAID_CLASS_COLORS[classTag]
+                        classHex = string.format("ff%02x%02x%02x",
+                            c.r * 255, c.g * 255, c.b * 255)
+                    end
+                    local guildDisplay = foundGuild ~= "" and foundGuild or "unknown"
+                    print("|cffff0000[Cogwheel]|r |c" .. classHex .. playerName
+                        .. "|r is currently in a guild (|cff40ff40"
+                        .. guildDisplay .. "|r). Can not invite right now.")
+                else
+                    DoGuildInvite(playerName)
+
+                    historyDB[playerName] = historyDB[playerName] or {}
+                    historyDB[playerName].time = time()
+                    historyDB[playerName].action = "INVITED"
+                    historyDB[playerName].class =
+                        historyDB[playerName].class or "PRIEST"
+                    Analytics.RecordInviteSent(
+                        playerName,
+                        historyDB[playerName].class,
+                        historyDB[playerName].level
+                    )
+                    if settingsDB and settingsDB.stats then
+                        settingsDB.stats.invited =
+                            (settingsDB.stats.invited or 0) + 1
+                    end
+
+                    if item.data then
+                        item.data.invited = true
+                    end
+                    if button then
+                        button:SetText("Invited!")
+                        button:Disable()
+                        button:SetAlpha(0.6)
+                    end
+                    print("|cff00ff00[Cogwheel]|r " .. playerName
+                        .. " left their guild! Invite sent.")
+                end
+            end)
         end,
         onWhisperClear = function(item)
             whispersDB[item.key] = nil
@@ -832,6 +1015,8 @@ if NS.ScanController and NS.ScanController.Create then
         playerCanRecruitNow = PlayerCanRecruitNow,
         recruitPermissionRequiredText = RECRUIT_PERMISSION_REQUIRED_TEXT,
         sendWhisperToPlayer = SendWhisperToPlayer,
+        sendGuildedWhisperToPlayer = SendGuildedWhisperToPlayer,
+        sendGuildInvite = DoGuildInvite,
         handleInboundWhisper = function(msg, sender)
             if NS.HandleInboundWhisper then
                 NS.HandleInboundWhisper(msg, sender)
@@ -882,7 +1067,7 @@ quickActionHandlers.onInvite = function()
     end
 end
 
-function StartScanSequence()
+StartScanSequence = function()
     if scanController and scanController.StartScanSequence then
         scanController.StartScanSequence()
     end

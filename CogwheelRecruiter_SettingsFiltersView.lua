@@ -166,7 +166,175 @@ function SettingsFiltersView.Create(context)
         UpdateWhisperPreview()
     end)
 
-    local welcomeTop = -188
+    -- Separator: Whisper Template -> Guilded Players
+    local sep1 = settingsContent:CreateTexture(nil, "ARTWORK")
+    sep1:SetHeight(1)
+    sep1:SetPoint("TOPLEFT", 10, -178)
+    sep1:SetPoint("TOPRIGHT", -10, -178)
+    sep1:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+
+    -- Guilded Players Section
+    local guildedTop = -188
+    local guildedCB = CreateFrame("CheckButton", nil, settingsContent, "UICheckButtonTemplate")
+    guildedCB:SetPoint("TOPLEFT", 10, guildedTop)
+    guildedCB:SetSize(24, 24)
+    guildedCB.text = guildedCB:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    guildedCB.text:SetPoint("LEFT", guildedCB, "RIGHT", 5, 0)
+    guildedCB.text:SetText("Show players that already have a guild")
+
+    local guildedLabel = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    guildedLabel:SetPoint("TOPLEFT", 10, guildedTop - 28)
+    guildedLabel:SetText("Guilded Player Whisper Template:")
+
+    local guildedHelpBtn = CreateFrame("Button", nil, settingsContent, "UIPanelButtonTemplate")
+    guildedHelpBtn:SetSize(18, 18)
+    guildedHelpBtn:SetPoint("LEFT", guildedLabel, "RIGHT", 6, 0)
+    guildedHelpBtn:SetText("i")
+    guildedHelpBtn:SetNormalFontObject("GameFontHighlightSmall")
+    guildedHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
+    guildedHelpBtn:SetScript("OnEnter", function(self)
+        local playerName = UnitName("player") or "Player"
+        local guildName = GetGuildInfo("player") or "our guild"
+        local _, playerClassFile = UnitClass("player")
+        local playerClassName = normalizeClassName(playerClassFile)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Guilded Whisper Template Tokens", 1, 0.82, 0)
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine("<character> or {character}", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("Target player's name.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Resolves now: " .. playerName, 0.5, 0.9, 0.5, true)
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine("<guild> or {guild}", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("Your current guild name.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Resolves now: " .. guildName, 0.5, 0.9, 0.5, true)
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine("<class> or {class}", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("Target player's class.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Resolves now: " .. playerClassName, 0.5, 0.9, 0.5, true)
+        GameTooltip:AddLine(" ", 1, 1, 1)
+        GameTooltip:AddLine("<targetguild> or {targetguild}", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("The target player's current guild.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Resolves at send time.", 0.5, 0.9, 0.5, true)
+        GameTooltip:Show()
+    end)
+    guildedHelpBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+    local guildedCount = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    guildedCount:SetPoint("TOPLEFT", 10, guildedTop - 42)
+    guildedCount:SetWidth(430)
+    guildedCount:SetJustifyH("LEFT")
+
+    local guildedBoxFrame = CreateFrame("Frame", nil, settingsContent, "BackdropTemplate")
+    guildedBoxFrame:SetPoint("TOPLEFT", 10, guildedTop - 58)
+    guildedBoxFrame:SetSize(430, 76)
+    guildedBoxFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+
+    local guildedBox = CreateFrame("EditBox", nil, guildedBoxFrame)
+    guildedBox:SetPoint("TOPLEFT", 8, -8)
+    guildedBox:SetPoint("BOTTOMRIGHT", -8, 8)
+    guildedBox:SetAutoFocus(false)
+    guildedBox:SetTextInsets(5, 5, 0, 0)
+    guildedBox:SetMultiLine(true)
+    guildedBox:SetJustifyH("LEFT")
+    guildedBox:SetJustifyV("TOP")
+    guildedBox:SetMaxLetters(500)
+    guildedBox:SetFontObject("GameFontHighlight")
+
+    local guildedPreview = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    guildedPreview:SetPoint("TOPLEFT", 10, guildedTop - 138)
+    guildedPreview:SetWidth(430)
+    guildedPreview:SetJustifyH("LEFT")
+    guildedPreview:SetJustifyV("TOP")
+
+    local buildGuildedWhisperPreview = context.buildGuildedWhisperPreview
+        or function(targetName, targetClass, targetGuild)
+            return ""
+        end
+
+    local function SetGuildedSectionEnabled(enabled)
+        if enabled then
+            guildedLabel:SetTextColor(1, 0.82, 0)
+            guildedBoxFrame:SetAlpha(1.0)
+            guildedBox:EnableMouse(true)
+            guildedBox:EnableKeyboard(true)
+            guildedHelpBtn:Enable()
+            guildedPreview:SetAlpha(1.0)
+            guildedCount:SetAlpha(1.0)
+        else
+            guildedLabel:SetTextColor(0.5, 0.5, 0.5)
+            guildedBoxFrame:SetAlpha(0.4)
+            guildedBox:EnableMouse(false)
+            guildedBox:EnableKeyboard(false)
+            guildedHelpBtn:Disable()
+            guildedPreview:SetAlpha(0.4)
+            guildedCount:SetAlpha(0.4)
+        end
+    end
+
+    local function UpdateGuildedPreview()
+        local sDB = getSettingsDB()
+        if not sDB then return end
+        local template = sDB.guildedWhisperTemplate or ""
+        local sampleTarget = UnitName("player") or "Player"
+        local _, sampleClass = UnitClass("player")
+        local sampleGuild = GetGuildInfo("player") or "Their Guild"
+        local preview = buildGuildedWhisperPreview(
+            sampleTarget, sampleClass, sampleGuild
+        )
+        guildedPreview:SetText("Preview: " .. preview)
+
+        local previewState
+        if NS.TemplatePreview and NS.TemplatePreview.BuildPreviewState then
+            previewState = NS.TemplatePreview.BuildPreviewState(
+                template, preview, maxWhisperChars
+            )
+        end
+        if previewState and NS.TemplatePreview.ApplyCountToFontString then
+            NS.TemplatePreview.ApplyCountToFontString(guildedCount, previewState)
+        end
+    end
+
+    guildedCB:SetScript("OnShow", function(self)
+        local sDB = getSettingsDB()
+        local checked = sDB and sDB.showGuildedPlayers == true
+        self:SetChecked(checked)
+        SetGuildedSectionEnabled(checked)
+    end)
+    guildedCB:SetScript("OnClick", function(self)
+        local sDB = getSettingsDB()
+        if not sDB then return end
+        sDB.showGuildedPlayers = self:GetChecked() == true
+        SetGuildedSectionEnabled(sDB.showGuildedPlayers)
+    end)
+
+    guildedBox:SetScript("OnShow", function(self)
+        local sDB = getSettingsDB()
+        self:SetText((sDB and sDB.guildedWhisperTemplate) or "")
+        UpdateGuildedPreview()
+    end)
+    guildedBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+    guildedBox:SetScript("OnTextChanged", function(self)
+        local sDB = getSettingsDB()
+        if not sDB then return end
+        sDB.guildedWhisperTemplate = self:GetText()
+        UpdateGuildedPreview()
+    end)
+
+    -- Separator: Guilded Players -> Welcome Message
+    local sep2 = settingsContent:CreateTexture(nil, "ARTWORK")
+    sep2:SetHeight(1)
+    sep2:SetPoint("TOPLEFT", 10, -370)
+    sep2:SetPoint("TOPRIGHT", -10, -370)
+    sep2:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+
+    local welcomeTop = -380
     local welcomeHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     welcomeHeader:SetPoint("TOPLEFT", 10, welcomeTop)
     welcomeHeader:SetText("Auto Welcome Message:")
@@ -544,7 +712,14 @@ function SettingsFiltersView.Create(context)
 
     filtersContent:SetHeight(360)
 
-    local historyTop = welcomeTop - 168
+    -- Separator: Welcome Message -> History Retention
+    local sep3 = settingsContent:CreateTexture(nil, "ARTWORK")
+    sep3:SetHeight(1)
+    sep3:SetPoint("TOPLEFT", 10, welcomeTop - 168)
+    sep3:SetPoint("TOPRIGHT", -10, welcomeTop - 168)
+    sep3:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+
+    local historyTop = welcomeTop - 178
     local historyHeader = settingsContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     historyHeader:SetPoint("TOPLEFT", 10, historyTop)
     historyHeader:SetText("History Retention:")
@@ -604,9 +779,17 @@ function SettingsFiltersView.Create(context)
             welcomeBox:SetText(settingsDB.welcomeTemplate or "")
         end
         UpdateWelcomePreview()
+
+        local guildedEnabled = settingsDB and settingsDB.showGuildedPlayers == true
+        guildedCB:SetChecked(guildedEnabled)
+        SetGuildedSectionEnabled(guildedEnabled)
+        if settingsDB then
+            guildedBox:SetText(settingsDB.guildedWhisperTemplate or "")
+        end
+        UpdateGuildedPreview()
     end)
 
-    settingsContent:SetHeight(400)
+    settingsContent:SetHeight(640)
 
     return {
         RefreshLevelRangeText = RefreshLevelRangeText,
