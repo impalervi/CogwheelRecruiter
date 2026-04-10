@@ -148,7 +148,7 @@ function Scanner.OnWhoTimeout(state)
     }
 end
 
-function Scanner.CollectWhoResults(accumulatedResults, fallbackZone)
+function Scanner.CollectWhoResults(accumulatedResults, fallbackZone, showGuildedPlayers)
     accumulatedResults = accumulatedResults or {}
 
     local num = 0
@@ -170,14 +170,16 @@ function Scanner.CollectWhoResults(accumulatedResults, fallbackZone)
         local entry = ParseWhoEntry(i, fallbackZone)
         local hasNoGuild = (entry.guild or "") == ""
         local hasName = entry.name and entry.name ~= ""
+        local includeGuilded = showGuildedPlayers and not hasNoGuild
 
-        if hasNoGuild and hasName and not seenNames[entry.name] then
+        if hasName and not seenNames[entry.name] and (hasNoGuild or includeGuilded) then
             seenNames[entry.name] = true
             table.insert(accumulatedResults, {
                 name = entry.name,
                 level = entry.level,
                 class = entry.class,
                 zone = entry.zone,
+                guild = (not hasNoGuild) and entry.guild or nil,
             })
             added = added + 1
         end

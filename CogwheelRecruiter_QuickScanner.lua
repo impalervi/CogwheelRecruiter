@@ -547,6 +547,7 @@ function QuickScanner.CollectWhoResults(state, settingsDB, maxPlayerLevel, queue
         return 0
     end
 
+    local showGuilded = settingsDB and settingsDB.showGuildedPlayers == true
     local added = 0
     local num = 0
     if C_FriendList and C_FriendList.GetNumWhoResults then
@@ -575,7 +576,11 @@ function QuickScanner.CollectWhoResults(state, settingsDB, maxPlayerLevel, queue
             if not guild then guild = "" end
         end
 
-        if guild == "" and name and QuickScanner.MatchesFilters(settingsDB, level or 0, cls, maxPlayerLevel)
+        local hasNoGuild = (guild or "") == ""
+        local eligible = hasNoGuild or showGuilded
+
+        if eligible and name
+            and QuickScanner.MatchesFilters(settingsDB, level or 0, cls, maxPlayerLevel)
             and not state.seenNames[name]
             and not QuickScanner.IsCandidateInQueue(state, name) then
             local history = historyDB and historyDB[name]
@@ -586,6 +591,7 @@ function QuickScanner.CollectWhoResults(state, settingsDB, maxPlayerLevel, queue
                     level = level or 0,
                     class = string.upper(cls or "PRIEST"),
                     zone = zone or state.currentScanZone,
+                    guild = (not hasNoGuild) and guild or nil,
                 })
                 added = added + 1
                 if #state.queue >= (queueMax or 20) then

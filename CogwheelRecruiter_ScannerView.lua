@@ -145,20 +145,23 @@ function ScannerView.Create(context)
     local rows = {}
     local parent = context.parent
     local rowWidth = tonumber(context.rowWidth) or 460
-    local rowHeight = tonumber(context.rowHeight) or 30
+    local ROW_HEIGHT_GUILDED = 40
+    local ROW_HEIGHT_COMPACT = 30
 
     local function CreateRow()
         local row = CreateFrame("Frame", nil, parent)
-        row:SetSize(rowWidth, rowHeight)
+        row:SetSize(rowWidth, ROW_HEIGHT_GUILDED)
 
         row.nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-        row.nameText:SetPoint("LEFT", 5, 0)
+        row.nameText:SetPoint("TOPLEFT", 5, -2)
         row.nameText:SetWidth(150)
         row.nameText:SetJustifyH("LEFT")
+        if row.nameText.SetWordWrap then row.nameText:SetWordWrap(false) end
+        if row.nameText.SetMaxLines then row.nameText:SetMaxLines(1) end
 
         row.actionBtn = CreateFrame("Button", nil, row, "GameMenuButtonTemplate")
         row.actionBtn:SetSize(72, 22)
-        row.actionBtn:SetPoint("RIGHT", -5, 0)
+        row.actionBtn:SetPoint("TOPRIGHT", -5, -2)
         row.actionBtn:SetNormalFontObject("GameFontNormalSmall")
         row.actionBtn:SetHighlightFontObject("GameFontHighlightSmall")
         row.actionBtn:SetDisabledFontObject("GameFontDisableSmall")
@@ -172,7 +175,6 @@ function ScannerView.Create(context)
         row.whisperBtn:SetText("Whisper")
 
         row.infoText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.infoText:SetPoint("LEFT", row.nameText, "RIGHT", 5, 0)
         row.infoText:SetPoint("RIGHT", row.whisperBtn, "LEFT", -6, 0)
         row.infoText:SetJustifyH("LEFT")
         if row.infoText.SetWordWrap then
@@ -182,7 +184,48 @@ function ScannerView.Create(context)
             row.infoText:SetMaxLines(1)
         end
 
+        row.guildText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        row.guildText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, 0)
+        row.guildText:SetWidth(300)
+        row.guildText:SetJustifyH("LEFT")
+        row.guildText:SetTextColor(0.4, 0.7, 0.4)
+        if row.guildText.SetWordWrap then row.guildText:SetWordWrap(false) end
+        row.guildText:SetText("")
+
+        row.actionBtnOverlay = CreateFrame("Frame", nil, row)
+        row.actionBtnOverlay:SetAllPoints(row.actionBtn)
+        row.actionBtnOverlay:SetFrameLevel(row.actionBtn:GetFrameLevel() + 1)
+        row.actionBtnOverlay:EnableMouse(true)
+        row.actionBtnOverlay:SetScript("OnEnter", function(self)
+            if self.tooltipText then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(self.tooltipText, 1, 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        row.actionBtnOverlay:SetScript("OnLeave", GameTooltip_Hide)
+        row.actionBtnOverlay:Hide()
+
         return row
+    end
+
+    local function ApplyRowLayout(row, useGuildedLayout)
+        row.nameText:ClearAllPoints()
+        row.infoText:ClearAllPoints()
+        row.actionBtn:ClearAllPoints()
+        if useGuildedLayout then
+            row:SetHeight(ROW_HEIGHT_GUILDED)
+            row.nameText:SetPoint("TOPLEFT", 5, -2)
+            row.infoText:SetPoint("LEFT", 158, 8)
+            row.infoText:SetPoint("RIGHT", row.whisperBtn, "LEFT", -6, 0)
+            row.actionBtn:SetPoint("TOPRIGHT", -5, -2)
+        else
+            row:SetHeight(ROW_HEIGHT_COMPACT)
+            row.nameText:SetPoint("LEFT", 5, 0)
+            row.infoText:SetPoint("LEFT", 158, 0)
+            row.infoText:SetPoint("RIGHT", row.whisperBtn, "LEFT", -6, 0)
+            row.actionBtn:SetPoint("RIGHT", -5, 0)
+        end
     end
 
     local function Clear()
@@ -215,6 +258,9 @@ function ScannerView.Create(context)
             canRecruit = context.playerCanRecruit() and true or false
         end
 
+        local showGuilded = settingsDB and settingsDB.showGuildedPlayers == true
+        local currentRowHeight = showGuilded and ROW_HEIGHT_GUILDED or ROW_HEIGHT_COMPACT
+
         local yOffset = 0
         local count = 0
 
@@ -224,13 +270,17 @@ function ScannerView.Create(context)
                 classAllowed = true
             end
 
-            if data.level >= minLvl and data.level <= maxLvl and classAllowed then
+            local history = historyDB and historyDB[data.name] or nil
+            local alreadyHandled = history and (history.action == "INVITED" or history.action == "JOINED")
+
+            if data.level >= minLvl and data.level <= maxLvl and classAllowed and not alreadyHandled then
                 count = count + 1
                 if not rows[count] then
                     rows[count] = CreateRow()
                 end
 
                 local row = rows[count]
+                ApplyRowLayout(row, showGuilded)
                 row:SetPoint("TOPLEFT", 0, -yOffset)
                 row:Show()
 
@@ -246,15 +296,37 @@ function ScannerView.Create(context)
                 row.infoText:SetText("Lvl " .. data.level .. " (" .. (data.zone or "?") .. ")")
                 row.infoText:SetTextColor(1, 1, 1)
 
+                local isGuilded = data.guild and data.guild ~= ""
+
+                if isGuilded then
+                    local guildDisplay = data.guild
+                    if string.len(guildDisplay) > 30 then
+                        guildDisplay = string.sub(guildDisplay, 1, 29) .. "..."
+                    end
+                    row.guildText:SetText("<" .. guildDisplay .. ">")
+                    row.guildText:Show()
+                else
+                    row.guildText:SetText("")
+                    row.guildText:Hide()
+                end
+
                 row.actionBtn:SetText("Invite")
                 row.actionBtn:Enable()
                 row.actionBtn:SetAlpha(1.0)
+                row.actionBtnOverlay:Hide()
 
                 row.whisperBtn:SetText("Whisper")
                 row.whisperBtn:Enable()
                 row.whisperBtn:SetAlpha(1.0)
 
-                local history = historyDB and historyDB[data.name] or nil
+                if isGuilded then
+                    row.actionBtn:SetText("In Guild")
+                    row.actionBtn:Disable()
+                    row.actionBtn:SetAlpha(0.5)
+                    row.actionBtnOverlay.tooltipText = "This player is already in <" .. (data.guild or "") .. ">"
+                    row.actionBtnOverlay:Show()
+                end
+
                 local whisperKey = context.getWhisperKey and context.getWhisperKey(data.name) or data.name
                 local whisperState = whispersDB and whispersDB[whisperKey] or nil
 
@@ -263,23 +335,10 @@ function ScannerView.Create(context)
                     row.whisperBtn:Disable()
                 end
 
-                if history then
-                    if history.action == "DECLINED" then
-                        row.infoText:SetText("Declined")
-                        row.infoText:SetTextColor(1, 0, 0)
-                        row.actionBtn:SetText("Retry")
-                    elseif history.action == "JOINED" then
-                        row.infoText:SetText("Joined")
-                        row.infoText:SetTextColor(0, 1, 0)
-                        row.actionBtn:SetText("-")
-                        row.actionBtn:Disable()
-                        row.whisperBtn:SetText("-")
-                        row.whisperBtn:Disable()
-                    else
-                        row.infoText:SetText("Invited")
-                        row.actionBtn:SetText("Invited")
-                        row.actionBtn:Disable()
-                    end
+                if history and history.action == "DECLINED" then
+                    row.infoText:SetText("Declined")
+                    row.infoText:SetTextColor(1, 0, 0)
+                    row.actionBtn:SetText("Retry")
                 end
 
                 if not canRecruit then
@@ -319,7 +378,7 @@ function ScannerView.Create(context)
                     end
                 end)
 
-                yOffset = yOffset + rowHeight
+                yOffset = yOffset + currentRowHeight
             end
         end
 

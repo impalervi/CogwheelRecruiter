@@ -40,11 +40,17 @@ function QuickScannerView.Create(context)
     end)
 
     quickUI.nameText = quickView:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    quickUI.nameText:SetPoint("TOP", quickView, "TOP", 0, -24)
+    quickUI.nameText:SetPoint("TOP", quickView, "TOP", 0, -14)
     quickUI.nameText:SetText("No Candidate")
 
+    quickUI.guildText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    quickUI.guildText:SetPoint("TOP", quickUI.nameText, "BOTTOM", 0, -2)
+    quickUI.guildText:SetTextColor(0.2, 0.9, 0.2)
+    quickUI.guildText:SetText("")
+    quickUI.guildText:SetHeight(14)
+
     quickUI.levelText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    quickUI.levelText:SetPoint("TOP", quickUI.nameText, "BOTTOM", 0, -8)
+    quickUI.levelText:SetPoint("TOP", quickUI.guildText, "BOTTOM", 0, -2)
     quickUI.levelText:SetText("")
 
     quickUI.queueText = quickView:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -103,6 +109,7 @@ function QuickScannerView.Create(context)
         if not quickState then
             quickUI.queueText:SetText("Queue: 0")
             quickUI.nameText:SetText("No Candidate")
+            quickUI.guildText:SetText("")
             quickUI.levelText:SetText("")
             quickUI.statusText:SetText("Press Next to start scanning.")
             quickUI.nextBtn:SetText("Next")
@@ -126,17 +133,30 @@ function QuickScannerView.Create(context)
             end
             quickUI.nameText:SetText(candidate.name or "?")
             quickUI.levelText:SetText("Level " .. tostring(candidate.level or 0))
+
+            local isGuilded = candidate.guild and candidate.guild ~= ""
+            if isGuilded then
+                local guildDisplay = candidate.guild
+                if string.len(guildDisplay) > 20 then
+                    guildDisplay = string.sub(guildDisplay, 1, 19) .. "..."
+                end
+                quickUI.guildText:SetText("<" .. guildDisplay .. ">")
+            else
+                quickUI.guildText:SetText("")
+            end
         else
             quickUI.nameText:SetTextColor(1, 1, 1)
             quickUI.nameText:SetText("No Candidate")
+            quickUI.guildText:SetText("")
             quickUI.levelText:SetText("")
         end
 
+        local isGuilded = candidate and candidate.guild and candidate.guild ~= ""
         local whisperEnabled = false
         local inviteEnabled = false
         if candidate then
             whisperEnabled = true
-            inviteEnabled = true
+            inviteEnabled = not isGuilded
 
             local historyDB = context.getHistoryDB and context.getHistoryDB() or nil
             local whispersDB = context.getWhispersDB and context.getWhispersDB() or nil
@@ -174,8 +194,17 @@ function QuickScannerView.Create(context)
         end
 
         if inviteEnabled then
+            quickUI.inviteBtn:SetText("Invite")
             quickUI.inviteBtn:Enable()
+            quickUI.inviteBtn:SetAlpha(1.0)
         else
+            if isGuilded then
+                quickUI.inviteBtn:SetText("In Guild")
+                quickUI.inviteBtn:SetAlpha(0.5)
+            else
+                quickUI.inviteBtn:SetText("Invite")
+                quickUI.inviteBtn:SetAlpha(1.0)
+            end
             quickUI.inviteBtn:Disable()
         end
 

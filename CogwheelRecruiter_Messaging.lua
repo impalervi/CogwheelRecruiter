@@ -29,9 +29,11 @@ local function GetSelfPlayerName()
     return UnitName("player")
 end
 
-function Messaging.BuildWhisperMessage(template, targetName, targetClass, guildName)
+function Messaging.BuildWhisperMessage(template, targetName, targetClass, guildName, targetGuild)
     if NS.Utils and NS.Utils.BuildWhisperMessage then
-        return NS.Utils.BuildWhisperMessage(template, targetName, targetClass, guildName)
+        return NS.Utils.BuildWhisperMessage(
+            template, targetName, targetClass, guildName, targetGuild
+        )
     end
     return template or ""
 end

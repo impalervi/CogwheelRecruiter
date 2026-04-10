@@ -96,6 +96,7 @@ function SettingsStatsGuildController.Create(context)
             normalizeClassName = context.normalizeClassName,
             buildWhisperPreview = context.buildWhisperPreview,
             buildWelcomePreview = context.buildWelcomePreview,
+            buildGuildedWhisperPreview = context.buildGuildedWhisperPreview,
             requestGuildRoster = context.requestGuildRoster,
             getGuildClassCounts = getGuildClassCounts,
             getGuildLevelCounts = getGuildLevelCounts,
@@ -108,8 +109,6 @@ function SettingsStatsGuildController.Create(context)
         NS.RefreshLevelRangeText = settingsFiltersViewAPI.RefreshLevelRangeText
         NS.InitializeLevelSlidersFromSettings = settingsFiltersViewAPI.InitializeLevelSlidersFromSettings
         NS.RefreshHistoryRetentionUI = settingsFiltersViewAPI.RefreshHistoryRetentionUI
-        NS.CreateSliderTrack = settingsFiltersViewAPI.CreateSliderTrack
-        NS.CreateLevelBadge = settingsFiltersViewAPI.CreateLevelBadge
     end
 
     return {

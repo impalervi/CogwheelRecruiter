@@ -95,8 +95,12 @@ if ($includePaths.Count -eq 0) {
 }
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("$addonFolderName-publish-" + [Guid]::NewGuid().ToString('N'))
 $stagingAddonRoot = Join-Path $stagingRoot $addonFolderName
+$dstDir = Join-Path $repoRoot 'dst'
+if (-not (Test-Path -LiteralPath $dstDir)) {
+    New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
+}
 $zipName = "$addonFolderName-v$version.zip"
-$zipPath = Join-Path $repoRoot $zipName
+$zipPath = Join-Path $dstDir $zipName
 
 try {
     New-Item -ItemType Directory -Path $stagingAddonRoot -Force | Out-Null

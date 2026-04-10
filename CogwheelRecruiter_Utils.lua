@@ -30,11 +30,12 @@ function Utils.NormalizeClassName(classToken)
     return upper:sub(1, 1) .. upper:sub(2):lower()
 end
 
-function Utils.ApplyTemplateTokens(template, targetName, targetClass, guildName)
+function Utils.ApplyTemplateTokens(template, targetName, targetClass, guildName, targetGuild)
     local msg = template or ""
     local short = Utils.GetShortName(targetName)
     local resolvedGuild = guildName or "our guild"
     local className = Utils.NormalizeClassName(targetClass)
+    local resolvedTargetGuild = targetGuild or "their guild"
 
     msg = msg:gsub("<character>", short)
     msg = msg:gsub("{character}", short)
@@ -42,12 +43,17 @@ function Utils.ApplyTemplateTokens(template, targetName, targetClass, guildName)
     msg = msg:gsub("{guild}", resolvedGuild)
     msg = msg:gsub("<class>", className)
     msg = msg:gsub("{class}", className)
+    msg = msg:gsub("<targetguild>", resolvedTargetGuild)
+    msg = msg:gsub("{targetguild}", resolvedTargetGuild)
 
     return msg
 end
 
-function Utils.BuildWhisperMessage(template, targetName, targetClass, guildName)
-    return Utils.ApplyTemplateTokens(template or "Hi <character>!", targetName, targetClass, guildName)
+function Utils.BuildWhisperMessage(template, targetName, targetClass, guildName, targetGuild)
+    return Utils.ApplyTemplateTokens(
+        template or "Hi <character>!",
+        targetName, targetClass, guildName, targetGuild
+    )
 end
 
 function Utils.BuildWelcomeMessage(template, targetName, guildName)

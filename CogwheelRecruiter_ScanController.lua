@@ -344,8 +344,13 @@ function ScanController.Create(context)
             return
         end
 
+        local isGuilded = candidate.guild and candidate.guild ~= ""
         local sent = false
-        if context.sendWhisperToPlayer then
+        if isGuilded and context.sendGuildedWhisperToPlayer then
+            sent = context.sendGuildedWhisperToPlayer(
+                candidate.name, candidate.class, candidate.guild
+            )
+        elseif context.sendWhisperToPlayer then
             sent = context.sendWhisperToPlayer(candidate.name, candidate.class)
         end
         if sent then
@@ -469,7 +474,13 @@ function ScanController.Create(context)
         if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
 
         if scannerEngine.CollectWhoResults then
-            scannerEngine.CollectWhoResults(scannerState.accumulatedResults, scannerState.currentScanZone)
+            local sDB = getSettingsDB()
+            local showGuilded = sDB and sDB.showGuildedPlayers == true
+            scannerEngine.CollectWhoResults(
+                scannerState.accumulatedResults,
+                scannerState.currentScanZone,
+                showGuilded
+            )
         end
 
         UpdateScanList(scannerState.accumulatedResults)
