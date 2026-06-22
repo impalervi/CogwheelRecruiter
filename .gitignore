@@ -5,6 +5,7 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+.claude/
 
 # Temporary files
 *.bak

@@ -1,0 +1,5 @@
+# Cogwheel Recruiter - Changelog v1.3
+
+## Battlegrounds Zones
+- Added a new "Battlegrounds" zone category to the scanner.
+- Scan Warsong Gulch, Arathi Basin, Alterac Valley, and Eye of the Storm to find unguilded PvP players to recruit.

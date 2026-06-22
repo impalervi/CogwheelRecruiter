@@ -36,5 +36,10 @@ NS.ZONE_CATEGORIES = {
         name = "Major Cities",
         zones = {"Orgrimmar", "Stormwind City", "Ironforge", "Undercity", "Darnassus", "Thunder Bluff", "Silvermoon City", "The Exodar", "Shattrath City"},
         min = 0, max = 0, color = {r=0.5, g=0.5, b=0.5}
+    },
+    {
+        name = "Battlegrounds",
+        zones = {"Warsong Gulch", "Arathi Basin", "Alterac Valley", "Eye of the Storm"},
+        min = 0, max = 0, color = {r=0.85, g=0.2, b=0.2}
     }
 }
