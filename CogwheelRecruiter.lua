@@ -75,9 +75,9 @@ local SPLASH_LOGO_CANDIDATES = {
     "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.png",
 }
 local DEBUG_ALWAYS_SHOW_WELCOME = false -- Keep false for normal first-launch welcome behavior
-local DEBUG_ON_SELF = true -- TEMP DEBUG: route addon whispers/reports to self; MUST disable before merge
+local DEBUG_ON_SELF = false -- TEMP DEBUG: route addon whispers/reports to self; MUST disable before merge
 local DEBUG_RESET_WELCOME_ON_LOAD = false -- TEMP DEBUG: reset splash screen trigger on load; MUST disable before merge
-local DEBUG_SKIP_INVITE = true -- TEMP DEBUG: print invite instead of sending; MUST disable before merge
+local DEBUG_SKIP_INVITE = false -- TEMP DEBUG: print invite instead of sending; MUST disable before merge
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -152,7 +152,7 @@ if not (mainFrame and contentPanel and quickFrame and welcomeFrame and welcomeSt
     error("CogwheelRecruiter frame shell initialization failed")
 end
 
-local FORCE_INVITE_PERMISSION_BYPASS = true -- TEMP DEBUG: bypass guild/invite checks; MUST disable before merge
+local FORCE_INVITE_PERMISSION_BYPASS = false -- TEMP DEBUG: bypass guild/invite checks; MUST disable before merge
 
 if Permissions.SetContext then
     Permissions.SetContext({
@@ -900,6 +900,7 @@ if NS.HistoryWhispersController and NS.HistoryWhispersController.Create then
                         end
                     end
                 end
+                NS.Platform.EndWhoCheck()
 
                 if not found then
                     if button then

@@ -19,6 +19,10 @@ function Platform.SendWho(query)
     C_FriendList.SendWho(query)
 end
 
+-- Called once the whispers-row check has read its /who results; nothing to undo here.
+function Platform.EndWhoCheck()
+end
+
 function Platform.GetExactNameWhoQuery(name)
     return 'n-"' .. name .. '"'
 end

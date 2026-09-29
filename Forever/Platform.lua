@@ -18,9 +18,19 @@ local SURNAME_SEPARATOR = (Constants and Constants.CharacterNameSeparatorConsts
 function Platform.SilenceWhoUI()
 end
 
--- Results back to chat afterwards, the game's default for the player's own /who.
+-- Blizzard's Who list turns results-to-UI on while it is shown and off when it is hidden
+-- (LFGWhoListMixin OnShow/OnHide). After our /who, the setting goes back to that rule.
+local function RestoreBlizzardWhoToUi()
+    local whoList = LFGWhoListFrame
+    C_FriendList.SetWhoToUi((whoList and whoList:IsVisible()) and true or false)
+end
+
 function Platform.RestoreWhoUI()
-    C_FriendList.SetWhoToUi(false)
+    RestoreBlizzardWhoToUi()
+end
+
+function Platform.EndWhoCheck()
+    RestoreBlizzardWhoToUi()
 end
 
 -- Results always go to the who list (WHO_LIST_UPDATE), even when only a few players match.
