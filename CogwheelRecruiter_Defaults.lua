@@ -64,8 +64,11 @@ function NS.EnsureAnalyticsDefaults(analyticsDB, classList, zoneCategories)
 end
 
 function NS.ApplyDefaultSettings(settingsDB, classList)
+    local maxPlayerLevel = NS.MAX_PLAYER_LEVEL or 70
     if not settingsDB.minLevel then settingsDB.minLevel = 1 end
-    if not settingsDB.maxLevel then settingsDB.maxLevel = 70 end
+    if not settingsDB.maxLevel then settingsDB.maxLevel = maxPlayerLevel end
+    if settingsDB.maxLevel > maxPlayerLevel then settingsDB.maxLevel = maxPlayerLevel end
+    if settingsDB.minLevel > settingsDB.maxLevel then settingsDB.minLevel = settingsDB.maxLevel end
 
     if not settingsDB.classes then settingsDB.classes = {} end
     for _, cls in ipairs(classList or {}) do
@@ -74,7 +77,7 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
 
     if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
     if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
-    if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
+    if not settingsDB.minimapPos then settingsDB.minimapPos = NS.DEFAULT_MINIMAP_POS or 45 end
     if not settingsDB.whisperTemplate then
         settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community, while you continue your adventure leveling up?"
     end

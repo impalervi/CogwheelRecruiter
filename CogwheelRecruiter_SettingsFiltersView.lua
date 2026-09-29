@@ -73,7 +73,7 @@ function SettingsFiltersView.Create(context)
     whisperHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
 
     whisperHelpBtn:SetScript("OnEnter", function(self)
-        local playerName = UnitName("player") or "Player"
+        local playerName = NS.Platform.GetPlayerFullName() or "Player"
         local guildName = GetGuildInfo("player") or "our guild"
         local _, playerClassFile = UnitClass("player")
         local playerClassName = normalizeClassName(playerClassFile)
@@ -134,7 +134,7 @@ function SettingsFiltersView.Create(context)
         end
 
         local template = settingsDB.whisperTemplate or ""
-        local sampleTarget = UnitName("player") or "Player"
+        local sampleTarget = NS.Platform.GetPlayerFullName() or "Player"
         local _, sampleClass = UnitClass("player")
         local preview = buildWhisperPreview(sampleTarget, sampleClass)
         whisperPreview:SetText("Preview: " .. preview)
@@ -193,7 +193,7 @@ function SettingsFiltersView.Create(context)
     guildedHelpBtn:SetNormalFontObject("GameFontHighlightSmall")
     guildedHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
     guildedHelpBtn:SetScript("OnEnter", function(self)
-        local playerName = UnitName("player") or "Player"
+        local playerName = NS.Platform.GetPlayerFullName() or "Player"
         local guildName = GetGuildInfo("player") or "our guild"
         local _, playerClassFile = UnitClass("player")
         local playerClassName = normalizeClassName(playerClassFile)
@@ -280,7 +280,7 @@ function SettingsFiltersView.Create(context)
         local sDB = getSettingsDB()
         if not sDB then return end
         local template = sDB.guildedWhisperTemplate or ""
-        local sampleTarget = UnitName("player") or "Player"
+        local sampleTarget = NS.Platform.GetPlayerFullName() or "Player"
         local _, sampleClass = UnitClass("player")
         local sampleGuild = GetGuildInfo("player") or "Their Guild"
         local preview = buildGuildedWhisperPreview(
@@ -346,7 +346,7 @@ function SettingsFiltersView.Create(context)
     welcomeHelpBtn:SetNormalFontObject("GameFontHighlightSmall")
     welcomeHelpBtn:SetHighlightFontObject("GameFontNormalSmall")
     welcomeHelpBtn:SetScript("OnEnter", function(self)
-        local playerName = UnitName("player") or "Player"
+        local playerName = NS.Platform.GetPlayerFullName() or "Player"
         local guildName = GetGuildInfo("player") or "our guild"
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText("Welcome Message Tokens", 1, 0.82, 0)
@@ -408,7 +408,7 @@ function SettingsFiltersView.Create(context)
         end
 
         local template = settingsDB.welcomeTemplate or ""
-        local sampleTarget = UnitName("player") or "Player"
+        local sampleTarget = NS.Platform.GetPlayerFullName() or "Player"
         local preview = buildWelcomePreview(sampleTarget)
         welcomePreview:SetText("Preview: " .. preview)
 

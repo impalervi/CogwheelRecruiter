@@ -10,6 +10,7 @@ function MinimapUI.Create(config)
     local minimapBtn = CreateFrame("Button", config.name or "CogwheelRecruiterMinimapButton", Minimap)
     minimapBtn:SetSize(32, 32)
     minimapBtn:SetFrameLevel(8)
+    NS.Platform.SetupMinimapButton(minimapBtn)
     minimapBtn:SetPoint("CENTER", Minimap, "CENTER", -56, -56)
     minimapBtn:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
@@ -28,7 +29,7 @@ function MinimapUI.Create(config)
     border:SetSize(54, 54)
     border:SetPoint("TOPLEFT")
 
-    local minimapWasDragging = false
+    local drag = NS.Platform.GetMinimapButtonDrag()
 
     local function GetSettings()
         if config.getSettings then
@@ -42,18 +43,15 @@ function MinimapUI.Create(config)
         if not settings or not settings.minimapPos then return end
 
         local angle = math.rad(settings.minimapPos)
-        local x = math.cos(angle) * 80
-        local y = math.sin(angle) * 80
+        local radius = NS.Platform.GetMinimapButtonRadius()
+        local x = math.cos(angle) * radius
+        local y = math.sin(angle) * radius
         minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
     end
 
     minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- No click follows a drag (the game cancels it), so every OnClick is a real click.
     minimapBtn:SetScript("OnClick", function(_, button)
-        if minimapWasDragging then
-            minimapWasDragging = false
-            return
-        end
-
         if button == "LeftButton" then
             if config.onLeftClick then
                 config.onLeftClick()
@@ -70,19 +68,18 @@ function MinimapUI.Create(config)
         GameTooltip:SetText(config.tooltipTitle or "Cogwheel Recruiter")
         GameTooltip:AddLine("Left-click: Open Scanner Mode", 1, 1, 1)
         GameTooltip:AddLine("Right-click: Open Quick Scanner Mode", 1, 1, 1)
-        GameTooltip:AddLine("Shift + Right-drag: Move minimap icon", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(drag.hint, 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     minimapBtn:SetScript("OnLeave", GameTooltip_Hide)
 
     minimapBtn:SetMovable(true)
-    minimapBtn:RegisterForDrag("RightButton")
+    minimapBtn:RegisterForDrag(drag.button)
     minimapBtn:SetScript("OnDragStart", function(self)
-        if not IsShiftKeyDown() then
+        if drag.needsShift and not IsShiftKeyDown() then
             return
         end
 
-        minimapWasDragging = true
         self:SetScript("OnUpdate", function()
             local settings = GetSettings()
             if not settings then

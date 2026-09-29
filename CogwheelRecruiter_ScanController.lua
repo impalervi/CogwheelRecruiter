@@ -3,6 +3,7 @@ NS = NS or {}
 
 NS.ScanController = NS.ScanController or {}
 local ScanController = NS.ScanController
+local Platform = NS.Platform
 
 function ScanController.Create(context)
     context = context or {}
@@ -234,7 +235,7 @@ function ScanController.Create(context)
         quickState.isWaitingForWho = false
         self:UnregisterEvent("WHO_LIST_UPDATE")
         self:Hide()
-        if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+        Platform.RestoreWhoUI()
 
         local added = CollectQuickWhoResults()
         if added > 0 then
@@ -285,21 +286,21 @@ function ScanController.Create(context)
             return
         end
 
-        UpdateQuickCandidateCard(string.format("Scanning %s...", zone))
-
-        if FriendsFrame then FriendsFrame:UnregisterEvent("WHO_LIST_UPDATE") end
+        Platform.SilenceWhoUI()
         quickWhoListener:RegisterEvent("WHO_LIST_UPDATE")
         quickWhoListener:Show()
         quickState.isWaitingForWho = true
 
-        C_FriendList.SendWho(zone)
+        Platform.SendWho(zone)
+        -- After the /who: this disables Next, and Forever blocks a /who from a disabled button.
+        UpdateQuickCandidateCard(string.format("Scanning %s...", zone))
 
         C_Timer.After(quickZoneTimeoutSeconds, function()
             if quickState.isScanning and quickState.isWaitingForWho and quickState.currentScanZone == zone then
                 quickState.isWaitingForWho = false
                 quickWhoListener:UnregisterEvent("WHO_LIST_UPDATE")
                 quickWhoListener:Hide()
-                if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+                Platform.RestoreWhoUI()
 
                 quickState.quietZones = quickState.quietZones + 1
                 if quickState.quietZones >= quickState.maxQuietZones then
@@ -390,20 +391,39 @@ function ScanController.Create(context)
         UpdateQuickCandidateCard("Invitation sent to " .. candidate.name)
     end
 
+    local function MatchSystemMessageName(msg, patterns)
+        for _, pattern in ipairs(patterns) do
+            local name = string.match(msg, pattern)
+            if name then
+                return Platform.NormalizeSystemMessageName(name)
+            end
+        end
+        return nil
+    end
+
+    local declinePatterns, joinPatterns = Platform.GetGuildMessagePatterns()
+
     local scanLogic = CreateFrame("Frame")
     scanLogic:RegisterEvent("CHAT_MSG_SYSTEM")
     scanLogic:RegisterEvent("CHAT_MSG_WHISPER")
     scanLogic:SetScript("OnEvent", function(_, event, ...)
+        local msg, sender = ...
+        -- Retail-based clients (incl. Forever) can deliver chat payloads as secret values in restricted contexts.
+        if issecretvalue and (issecretvalue(msg) or issecretvalue(sender)) then
+            return
+        end
+        if type(msg) ~= "string" then
+            return
+        end
+
         if event == "CHAT_MSG_WHISPER" then
-            local msg, sender = ...
             if context.handleInboundWhisper then
                 context.handleInboundWhisper(msg, sender)
             end
             return
         end
 
-        local msg = ...
-        local declinedName = string.match(msg, "^(.*) declines guild invitation")
+        local declinedName = MatchSystemMessageName(msg, declinePatterns)
 
         local historyDB = getHistoryDB()
         if declinedName and historyDB and historyDB[declinedName] then
@@ -415,7 +435,7 @@ function ScanController.Create(context)
             printFn("|cffff0000[Cogwheel]|r Detected decline: " .. declinedName)
         end
 
-        local joinedName = string.match(msg, "^(.*) has joined the guild")
+        local joinedName = MatchSystemMessageName(msg, joinPatterns)
         if joinedName then
             local existing = (historyDB and historyDB[joinedName]) or {}
             if analytics.RecordInviteAccepted then
@@ -471,7 +491,7 @@ function ScanController.Create(context)
         self:UnregisterEvent("WHO_LIST_UPDATE")
         self:Hide()
 
-        if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+        Platform.RestoreWhoUI()
 
         if scannerEngine.CollectWhoResults then
             local sDB = getSettingsDB()
@@ -542,14 +562,18 @@ function ScanController.Create(context)
         end
         printFn("|cff00ff00[Cogwheel]|r Scanning: " .. nextZone .. "...")
 
-        if FriendsFrame then FriendsFrame:UnregisterEvent("WHO_LIST_UPDATE") end
+        Platform.SilenceWhoUI()
 
         whoListener:RegisterEvent("WHO_LIST_UPDATE")
         whoListener:Show()
 
         scannerState.isWaitingForWho = true
 
-        C_FriendList.SendWho(nextZone)
+        Platform.SendWho(nextZone)
+        -- After the /who: Forever blocks a /who from a disabled button.
+        if context.disableScanButton then
+            context.disableScanButton()
+        end
 
         C_Timer.After(whoQueryTimeoutSeconds, function()
             local timeoutState = nil
@@ -565,7 +589,7 @@ function ScanController.Create(context)
 
             whoListener:UnregisterEvent("WHO_LIST_UPDATE")
             whoListener:Hide()
-            if FriendsFrame then FriendsFrame:RegisterEvent("WHO_LIST_UPDATE") end
+            Platform.RestoreWhoUI()
 
             if timeoutState.hasMore then
                 local nextZoneLabel = timeoutState.nextZone or scannerState.scanQueue[1] or ""
@@ -590,9 +614,6 @@ function ScanController.Create(context)
         end
 
         if scannerState.isScanning and #scannerState.scanQueue > 0 then
-            if context.disableScanButton then
-                context.disableScanButton()
-            end
             ProcessNextScan()
             return
         end
@@ -612,10 +633,6 @@ function ScanController.Create(context)
         end
 
         ClearScanView()
-        if context.disableScanButton then
-            context.disableScanButton()
-        end
-
         ProcessNextScan()
     end
 

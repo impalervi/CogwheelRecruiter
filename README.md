@@ -95,7 +95,9 @@ Example:
   "include": [
     "CogwheelRecruiter.lua",
     "CogwheelRecruiter.toc",
+    "CogwheelRecruiter_Camelot.toc",
     "CogwheelRecruiter_Constants.lua",
+    "CogwheelRecruiter_Platform.lua",
     "CogwheelRecruiter_Defaults.lua",
     "CogwheelRecruiter_Utils.lua",
     "CogwheelRecruiter_Analytics.lua",
@@ -124,6 +126,7 @@ Example:
     "CogwheelRecruiter_SettingsFiltersView.lua",
     "CogwheelRecruiter_HistoryView.lua",
     "CogwheelRecruiter_GuildReports.lua",
+    "Forever",
     "Media"
   ]
 }
@@ -141,6 +144,12 @@ Optional explicit path override:
 
 ```powershell
 .\scripts\deploy.ps1 -WowDir "D:\Games\World of Warcraft\_anniversary_"
+```
+
+WoW: Forever uses the same addon folder. Its client loads `CogwheelRecruiter_Camelot.toc`, which adds the files in `Forever\`: `Constants.lua` (zones, level cap) and `Platform.lua` (Forever versions of the functions in `CogwheelRecruiter_Platform.lua`). The other TOC never loads them.
+
+```powershell
+.\scripts\deploy.ps1 -WowDir "D:\Games\World of Warcraft\_classic_beta_"
 ```
 
 ### Bash deploy (WSL)

@@ -1,6 +1,9 @@
 local addonName, NS = ...
 NS = NS or {}
 
+NS.MAX_PLAYER_LEVEL = 70
+NS.DEFAULT_MINIMAP_POS = 45 -- degrees around the minimap, counter-clockwise from the right; 45 = top right
+
 NS.CLASS_LIST = {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID"
