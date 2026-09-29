@@ -46,6 +46,24 @@ end
 function Platform.SetupWindow()
 end
 
+-- Minimap button: its distance from the minimap's center, and how it is dragged around it.
+function Platform.GetMinimapButtonRadius()
+    return 80
+end
+
+function Platform.GetMinimapButtonDrag()
+    return {
+        button = "RightButton",
+        needsShift = true,
+        hint = "Shift + Right-drag: Move minimap icon",
+        suppressClickAfterDrag = true,
+    }
+end
+
+-- Extra setup for the minimap button (button); none needed here.
+function Platform.SetupMinimapButton()
+end
+
 -- The button left of a window's close button that switches windows.
 -- mode: "quick" (full window -> Quick Scanner) or "full" (Quick Scanner -> full window).
 function Platform.StyleWindowModeButton(button, closeButton, mode)

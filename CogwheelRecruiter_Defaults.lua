@@ -77,7 +77,7 @@ function NS.ApplyDefaultSettings(settingsDB, classList)
 
     if not settingsDB.stats then settingsDB.stats = { invited = 0, joined = 0 } end
     if not settingsDB.historyRetentionDays then settingsDB.historyRetentionDays = 1 end
-    if not settingsDB.minimapPos then settingsDB.minimapPos = 45 end
+    if not settingsDB.minimapPos then settingsDB.minimapPos = NS.DEFAULT_MINIMAP_POS or 45 end
     if not settingsDB.whisperTemplate then
         settingsDB.whisperTemplate = "Hi <character>, would you like to join <guild>, a friendly and supportive community, while you continue your adventure leveling up?"
     end

@@ -95,6 +95,29 @@ function Platform.SetupWindow(frame, closeButton)
     closeButton:SetFrameLevel(frame:GetFrameLevel() + 2)
 end
 
+-- The modern minimap is larger: the button sits just outside its edge and drags with the left button,
+-- like other addons' minimap buttons (LibDBIcon). A drag cancels the click, so no click is swallowed.
+function Platform.GetMinimapButtonRadius()
+    return (Minimap:GetWidth() / 2) + 5
+end
+
+function Platform.GetMinimapButtonDrag()
+    return {
+        button = "LeftButton",
+        needsShift = false,
+        hint = "Drag: Move minimap icon",
+        suppressClickAfterDrag = false,
+    }
+end
+
+-- Above the minimap's own art, at a fixed level, as LibDBIcon places its buttons.
+function Platform.SetupMinimapButton(button)
+    button:SetFrameStrata("MEDIUM")
+    button:SetFixedFrameStrata(true)
+    button:SetFrameLevel(8)
+    button:SetFixedFrameLevel(true)
+end
+
 -- Forever's close button is an atlas button (red square); copying its highlight file shows the
 -- whole atlas sheet. Use the matching red buttons, as Blizzard's MaximizeMinimizeButtonFrameTemplate does.
 function Platform.StyleWindowModeButton(button, closeButton, mode)
