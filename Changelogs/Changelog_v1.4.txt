@@ -1,0 +1,8 @@
+v1.4
+
+WoW: Forever Support
+- Cogwheel Recruiter now works in World of Warcraft: Forever.
+
+All Versions
+- Updated for the latest game versions.
+- Fixed: after moving the minimap button, the next click on it was ignored.
