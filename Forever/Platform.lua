@@ -96,7 +96,7 @@ function Platform.SetupWindow(frame, closeButton)
 end
 
 -- The modern minimap is larger: the button sits just outside its edge and drags with the left button,
--- like other addons' minimap buttons (LibDBIcon). A drag cancels the click, so no click is swallowed.
+-- like other addons' minimap buttons (LibDBIcon).
 function Platform.GetMinimapButtonRadius()
     return (Minimap:GetWidth() / 2) + 5
 end
@@ -106,7 +106,6 @@ function Platform.GetMinimapButtonDrag()
         button = "LeftButton",
         needsShift = false,
         hint = "Drag: Move minimap icon",
-        suppressClickAfterDrag = false,
     }
 end
 

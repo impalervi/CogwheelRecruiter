@@ -29,7 +29,6 @@ function MinimapUI.Create(config)
     border:SetSize(54, 54)
     border:SetPoint("TOPLEFT")
 
-    local minimapWasDragging = false
     local drag = NS.Platform.GetMinimapButtonDrag()
 
     local function GetSettings()
@@ -51,12 +50,8 @@ function MinimapUI.Create(config)
     end
 
     minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- No click follows a drag (the game cancels it), so every OnClick is a real click.
     minimapBtn:SetScript("OnClick", function(_, button)
-        if minimapWasDragging then
-            minimapWasDragging = false
-            return
-        end
-
         if button == "LeftButton" then
             if config.onLeftClick then
                 config.onLeftClick()
@@ -85,9 +80,6 @@ function MinimapUI.Create(config)
             return
         end
 
-        if drag.suppressClickAfterDrag then
-            minimapWasDragging = true
-        end
         self:SetScript("OnUpdate", function()
             local settings = GetSettings()
             if not settings then

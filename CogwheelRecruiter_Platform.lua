@@ -56,7 +56,6 @@ function Platform.GetMinimapButtonDrag()
         button = "RightButton",
         needsShift = true,
         hint = "Shift + Right-drag: Move minimap icon",
-        suppressClickAfterDrag = true,
     }
 end
 
