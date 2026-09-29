@@ -61,7 +61,9 @@ if ($includePaths.Count -eq 0) {
     $includePaths = @(
         'CogwheelRecruiter.lua',
         'CogwheelRecruiter.toc',
+        'CogwheelRecruiter_Camelot.toc',
         'CogwheelRecruiter_Constants.lua',
+        'CogwheelRecruiter_Platform.lua',
         'CogwheelRecruiter_Defaults.lua',
         'CogwheelRecruiter_Utils.lua',
         'CogwheelRecruiter_Analytics.lua',
@@ -90,6 +92,7 @@ if ($includePaths.Count -eq 0) {
         'CogwheelRecruiter_SettingsFiltersView.lua',
         'CogwheelRecruiter_HistoryView.lua',
         'CogwheelRecruiter_GuildReports.lua',
+        'Forever',
         'Media'
     )
 }

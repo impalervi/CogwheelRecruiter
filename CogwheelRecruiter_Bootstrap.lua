@@ -74,8 +74,9 @@ function Bootstrap.Create(context)
 
         if context.print then
             context.print(string.format(
-                "|cffC8A04A[Cogwheel Recruiter]|r v%s by |cff69CCF0Marviy|r @ Nightslayer. Type /cogwheel to start.",
-                tostring(context.addonVersion or "dev")
+                "|cffC8A04A[Cogwheel Recruiter]|r v%s by %s. Type /cogwheel to start.",
+                tostring(context.addonVersion or "dev"),
+                context.authorCredit or "|cff69CCF0Marviy|r @ Nightslayer"
             ))
         end
 

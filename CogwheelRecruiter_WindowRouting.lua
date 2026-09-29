@@ -10,6 +10,14 @@ function WindowRouting.Create(context)
     local addonVersion = tostring(context.addonVersion or "")
     local welcomeStartTab = 1
 
+    local function PlayerHasGuild()
+        if context.playerHasGuild then
+            return context.playerHasGuild()
+        end
+        local guildName = GetGuildInfo("player")
+        return guildName ~= nil and guildName ~= ""
+    end
+
     local function IsWelcomeRequired(settingsDB)
         if not settingsDB then
             return false
@@ -65,8 +73,7 @@ function WindowRouting.Create(context)
             return
         end
 
-        local guildName = GetGuildInfo("player")
-        local hasGuild = guildName ~= nil and guildName ~= ""
+        local hasGuild = PlayerHasGuild()
         local canInvite = hasGuild and context.playerCanInviteGuildMembers()
         local firstLaunchOrUpdate = IsWelcomeRequired(settingsDB)
         local blocked = (not hasGuild) or (not canInvite)
@@ -118,8 +125,7 @@ function WindowRouting.Create(context)
             return
         end
 
-        local guildName = GetGuildInfo("player")
-        local hasGuild = guildName ~= nil and guildName ~= ""
+        local hasGuild = PlayerHasGuild()
         local canInvite = hasGuild and context.playerCanInviteGuildMembers()
         local blocked = (not hasGuild) or (not canInvite)
         local firstLaunchOrUpdate = IsWelcomeRequired(settingsDB)
@@ -145,9 +151,7 @@ function WindowRouting.Create(context)
     end
 
     local function OnWelcomeStartClicked()
-        local guildName = GetGuildInfo("player")
-        local hasGuild = guildName ~= nil and guildName ~= ""
-        if not hasGuild or not context.playerCanInviteGuildMembers() then
+        if not PlayerHasGuild() or not context.playerCanInviteGuildMembers() then
             UpdateWelcomeState(true)
             return
         end

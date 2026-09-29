@@ -64,8 +64,11 @@ function NS.EnsureAnalyticsDefaults(analyticsDB, classList, zoneCategories)
 end
 
 function NS.ApplyDefaultSettings(settingsDB, classList)
+    local maxPlayerLevel = NS.MAX_PLAYER_LEVEL or 70
     if not settingsDB.minLevel then settingsDB.minLevel = 1 end
-    if not settingsDB.maxLevel then settingsDB.maxLevel = 70 end
+    if not settingsDB.maxLevel then settingsDB.maxLevel = maxPlayerLevel end
+    if settingsDB.maxLevel > maxPlayerLevel then settingsDB.maxLevel = maxPlayerLevel end
+    if settingsDB.minLevel > settingsDB.maxLevel then settingsDB.minLevel = settingsDB.maxLevel end
 
     if not settingsDB.classes then settingsDB.classes = {} end
     for _, cls in ipairs(classList or {}) do

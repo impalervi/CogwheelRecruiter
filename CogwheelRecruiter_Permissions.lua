@@ -19,6 +19,9 @@ local function IsInviteBypassEnabled()
 end
 
 function Permissions.PlayerHasGuild()
+    if IsInviteBypassEnabled() then
+        return true
+    end
     local guildName = GetGuildInfo("player")
     return guildName ~= nil and guildName ~= ""
 end

@@ -1,6 +1,8 @@
 local addonName, NS = ...
 NS = NS or {}
 
+NS.MAX_PLAYER_LEVEL = 70
+
 NS.CLASS_LIST = {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "SHAMAN", "MAGE", "WARLOCK", "DRUID"

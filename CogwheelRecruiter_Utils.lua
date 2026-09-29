@@ -8,6 +8,9 @@ function Utils.GetShortName(name)
     if not name then
         return ""
     end
+    if NS.Platform and NS.Platform.GetShortName then
+        return NS.Platform.GetShortName(name)
+    end
     return (name:match("^[^-]+") or name)
 end
 

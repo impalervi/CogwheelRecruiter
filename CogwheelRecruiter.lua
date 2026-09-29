@@ -36,7 +36,7 @@ local OpenQuickScannerWindow -- Forward declaration
 local ToggleAddonWindow -- Forward declaration
 local StartScanSequence -- Forward declaration
 local MAX_WHISPER_CHARS = 255
-local MAX_PLAYER_LEVEL = 70
+local MAX_PLAYER_LEVEL = NS.MAX_PLAYER_LEVEL or 70
 local ACTIVE_MEMBER_WINDOW_DAYS = 7
 local RECRUIT_PERMISSION_REQUIRED_TEXT = "Guild invite permission required."
 
@@ -52,7 +52,12 @@ end
 
 local ADDON_TITLE = GetAddonMeta(addonName, "Title") or addonName
 local ADDON_VERSION = GetAddonMeta(addonName, "Version") or "dev"
-local ADDON_AUTHOR = "ImpalerV (Marviy @ Nightslayer)"
+-- Each client's TOC carries its own credit, e.g. "ImpalerV (Marviy @ Nightslayer)" or "ImpalerV (Marvi Sparkweaver)".
+local ADDON_AUTHOR = GetAddonMeta(addonName, "Author") or "ImpalerV (Marviy @ Nightslayer)"
+local AUTHOR_CHARACTER = ADDON_AUTHOR:match("%((.+)%)") or ADDON_AUTHOR
+-- The colored name is everything before an " @ Realm" suffix: "Marviy" or "Marvi Sparkweaver".
+local AUTHOR_CHARACTER_NAME = AUTHOR_CHARACTER:match("^(.-)%s*@") or AUTHOR_CHARACTER
+local AUTHOR_CREDIT = "|cff69CCF0" .. AUTHOR_CHARACTER_NAME .. "|r" .. AUTHOR_CHARACTER:sub(#AUTHOR_CHARACTER_NAME + 1)
 local ADDON_NOTES = GetAddonMeta(addonName, "Notes") or "Recruit new guild members with smart filters and personalized outreach."
 local WELCOME_NOTES_DISPLAY = ADDON_NOTES:gsub(" and personalized outreach%.?", " and\npersonalized outreach")
 local COLOR_HEADER_GOLD = "|cffFFD100"
@@ -70,9 +75,9 @@ local SPLASH_LOGO_CANDIDATES = {
     "Interface\\AddOns\\CogwheelRecruiter\\Media\\CogwheelRecruiterLogo.png",
 }
 local DEBUG_ALWAYS_SHOW_WELCOME = false -- Keep false for normal first-launch welcome behavior
-local DEBUG_ON_SELF = false -- TEMP DEBUG: route addon whispers/reports to self; MUST disable before merge
+local DEBUG_ON_SELF = true -- TEMP DEBUG: route addon whispers/reports to self; MUST disable before merge
 local DEBUG_RESET_WELCOME_ON_LOAD = false -- TEMP DEBUG: reset splash screen trigger on load; MUST disable before merge
-local DEBUG_SKIP_INVITE = false -- TEMP DEBUG: print invite instead of sending; MUST disable before merge
+local DEBUG_SKIP_INVITE = true -- TEMP DEBUG: print invite instead of sending; MUST disable before merge
 
 local CLASS_LIST = NS.CLASS_LIST or {
     "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
@@ -101,14 +106,14 @@ if GuildReports.SetContext then
         getZoneCategories = function() return NS.ZONE_CATEGORIES end,
         getActiveWindowDays = function() return ACTIVE_MEMBER_WINDOW_DAYS end,
         getDebugOnSelf = function() return DEBUG_ON_SELF end,
-        getSelfPlayerName = function() return UnitName("player") end,
+        getSelfPlayerName = function() return NS.Platform.GetPlayerFullName() end,
     })
 end
 
 if Messaging.SetContext then
     Messaging.SetContext({
         getDebugOnSelf = function() return DEBUG_ON_SELF end,
-        getSelfPlayerName = function() return UnitName("player") end,
+        getSelfPlayerName = function() return NS.Platform.GetPlayerFullName() end,
     })
 end
 
@@ -119,6 +124,7 @@ if NS.FrameShell and NS.FrameShell.Create then
         addonTitle = ADDON_TITLE,
         addonVersion = ADDON_VERSION,
         addonAuthor = ADDON_AUTHOR,
+        authorCharacterName = AUTHOR_CHARACTER_NAME,
         colorHeaderGold = COLOR_HEADER_GOLD,
         colorFooterGold = COLOR_FOOTER_GOLD,
         colorDarkRed = COLOR_DARK_RED,
@@ -146,7 +152,7 @@ if not (mainFrame and contentPanel and quickFrame and welcomeFrame and welcomeSt
     error("CogwheelRecruiter frame shell initialization failed")
 end
 
-local FORCE_INVITE_PERMISSION_BYPASS = false -- TEMP DEBUG: bypass invite-permission check; MUST disable before merge
+local FORCE_INVITE_PERMISSION_BYPASS = true -- TEMP DEBUG: bypass guild/invite checks; MUST disable before merge
 
 if Permissions.SetContext then
     Permissions.SetContext({
@@ -207,6 +213,7 @@ if WindowRouting.Create then
         welcomeFrame = welcomeFrame,
         welcomeStartBtn = welcomeStartBtn,
         welcomeStatus = welcomeStatus,
+        playerHasGuild = PlayerHasGuild,
         playerCanInviteGuildMembers = PlayerCanInviteGuildMembers,
         getSettingsDB = function() return settingsDB end,
         getCurrentTab = function() return currentTab end,
@@ -276,6 +283,7 @@ if NS.Bootstrap and NS.Bootstrap.Create then
             end
         end,
         addonVersion = ADDON_VERSION,
+        authorCredit = AUTHOR_CREDIT,
         print = print,
     })
 end
@@ -844,14 +852,14 @@ if NS.HistoryWhispersController and NS.HistoryWhispersController.Create then
             end
 
             local playerName = item.name
-            local whoQuery = 'n-"' .. playerName .. '"'
+            local whoQuery = NS.Platform.GetExactNameWhoQuery(playerName)
 
+            NS.Platform.SendWho(whoQuery)
+            -- After the /who: Forever blocks a /who from a disabled button.
             if button then
                 button:SetText("Checking...")
                 button:Disable()
             end
-
-            C_FriendList.SendWho(whoQuery)
 
             C_Timer.After(1.5, function()
                 local num = C_FriendList.GetNumWhoResults() or 0
@@ -882,7 +890,7 @@ if NS.HistoryWhispersController and NS.HistoryWhispersController.Create then
                     end
 
                     if entryName then
-                        local shortName = (entryName:match("^[^-]+") or entryName)
+                        local shortName = GetShortName(entryName)
                         if shortName == playerName then
                             found = true
                             stillGuilded = (entryGuild or "") ~= ""

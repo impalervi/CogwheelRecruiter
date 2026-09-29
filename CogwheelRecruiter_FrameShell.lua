@@ -4,11 +4,15 @@ NS = NS or {}
 NS.FrameShell = NS.FrameShell or {}
 local FrameShell = NS.FrameShell
 
-local function ColorizeAuthor(authorText, darkMageColor, colorReset)
+local function ColorizeAuthor(authorText, characterName, darkMageColor, colorReset)
     authorText = authorText or ""
     darkMageColor = darkMageColor or ""
     colorReset = colorReset or ""
-    return authorText:gsub("Marviy", darkMageColor .. "Marviy" .. colorReset)
+    if not characterName or characterName == "" then
+        return authorText
+    end
+    local namePattern = characterName:gsub("%p", "%%%0")
+    return (authorText:gsub(namePattern, darkMageColor .. characterName .. colorReset, 1))
 end
 
 local function CreateTitleChip(parentFrame, width, centerWidth)
@@ -56,6 +60,7 @@ function FrameShell.Create(context)
     local addonTitle = context.addonTitle or "Cogwheel Recruiter"
     local addonVersion = context.addonVersion or "dev"
     local addonAuthor = context.addonAuthor or "Unknown"
+    local authorCharacterName = context.authorCharacterName or "Marviy"
 
     local colorHeaderGold = context.colorHeaderGold or ""
     local colorFooterGold = context.colorFooterGold or ""
@@ -66,7 +71,7 @@ function FrameShell.Create(context)
     local onSwitchToQuick = context.onSwitchToQuick
     local onSwitchToFull = context.onSwitchToFull
 
-    local coloredAuthor = ColorizeAuthor(addonAuthor, colorDarkMage, colorReset)
+    local coloredAuthor = ColorizeAuthor(addonAuthor, authorCharacterName, colorDarkMage, colorReset)
 
     local mainFrame = CreateFrame("Frame", "CogwheelRecruiterFrame", UIParent, "BackdropTemplate")
     mainFrame:SetSize(520, 550)
@@ -90,17 +95,7 @@ function FrameShell.Create(context)
     mainFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
 
     mainFrame.quickModeBtn = CreateFrame("Button", nil, mainFrame)
-    mainFrame.quickModeBtn:SetSize(32, 32)
-    mainFrame.quickModeBtn:SetPoint("RIGHT", mainFrame.closeBtn, "LEFT", 10, 0)
-    mainFrame.quickModeBtn:SetNormalTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Up")
-    mainFrame.quickModeBtn:SetPushedTexture("Interface\\Buttons\\UI-Panel-ExpandButton-Down")
-
-    local mainCloseHighlight = mainFrame.closeBtn:GetHighlightTexture()
-    if mainCloseHighlight and mainCloseHighlight:GetTexture() then
-        mainFrame.quickModeBtn:SetHighlightTexture(mainCloseHighlight:GetTexture(), "ADD")
-    else
-        mainFrame.quickModeBtn:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
-    end
+    NS.Platform.StyleWindowModeButton(mainFrame.quickModeBtn, mainFrame.closeBtn, "quick")
 
     mainFrame.quickModeBtn:SetScript("OnClick", function()
         if onSwitchToQuick then
@@ -175,17 +170,7 @@ function FrameShell.Create(context)
     quickFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
 
     quickFrame.fullModeBtn = CreateFrame("Button", nil, quickFrame)
-    quickFrame.fullModeBtn:SetSize(32, 32)
-    quickFrame.fullModeBtn:SetPoint("RIGHT", quickFrame.closeBtn, "LEFT", 10, 0)
-    quickFrame.fullModeBtn:SetNormalTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Up")
-    quickFrame.fullModeBtn:SetPushedTexture("Interface\\Buttons\\UI-Panel-CollapseButton-Down")
-
-    local quickCloseHighlight = quickFrame.closeBtn:GetHighlightTexture()
-    if quickCloseHighlight and quickCloseHighlight:GetTexture() then
-        quickFrame.fullModeBtn:SetHighlightTexture(quickCloseHighlight:GetTexture(), "ADD")
-    else
-        quickFrame.fullModeBtn:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
-    end
+    NS.Platform.StyleWindowModeButton(quickFrame.fullModeBtn, quickFrame.closeBtn, "full")
 
     quickFrame.fullModeBtn:SetScript("OnClick", function()
         if onSwitchToFull then

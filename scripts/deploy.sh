@@ -49,7 +49,9 @@ if [[ ${#INCLUDE_PATHS[@]} -eq 0 ]]; then
   INCLUDE_PATHS=(
     "CogwheelRecruiter.lua"
     "CogwheelRecruiter.toc"
+    "CogwheelRecruiter_Camelot.toc"
     "CogwheelRecruiter_Constants.lua"
+    "CogwheelRecruiter_Platform.lua"
     "CogwheelRecruiter_Defaults.lua"
     "CogwheelRecruiter_Utils.lua"
     "CogwheelRecruiter_Analytics.lua"
@@ -78,6 +80,7 @@ if [[ ${#INCLUDE_PATHS[@]} -eq 0 ]]; then
     "CogwheelRecruiter_SettingsFiltersView.lua"
     "CogwheelRecruiter_HistoryView.lua"
     "CogwheelRecruiter_GuildReports.lua"
+    "Forever"
     "Media"
   )
 fi
