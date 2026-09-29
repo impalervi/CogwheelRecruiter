@@ -391,42 +391,17 @@ function ScanController.Create(context)
         UpdateQuickCandidateCard("Invitation sent to " .. candidate.name)
     end
 
-    -- Turns a Blizzard format string such as ERR_GUILD_JOIN_S ("%s has joined the guild.") into a match pattern.
-    local function PatternFromGlobalString(formatString)
-        if type(formatString) ~= "string" or formatString == "" then
-            return nil
-        end
-        local escaped = formatString:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
-        local pattern, count = escaped:gsub("%%s", "(.+)")
-        if count ~= 1 then
-            return nil
-        end
-        return "^" .. pattern
-    end
-
-    local function BuildSystemMessagePatterns(formatString, fallbackPattern)
-        local patterns = {}
-        local fromGlobal = PatternFromGlobalString(formatString)
-        if fromGlobal then
-            table.insert(patterns, fromGlobal)
-        end
-        table.insert(patterns, fallbackPattern)
-        return patterns
-    end
-
     local function MatchSystemMessageName(msg, patterns)
         for _, pattern in ipairs(patterns) do
             local name = string.match(msg, pattern)
             if name then
-                name = name:match("|h%[(.-)%]|h") or name
                 return Platform.NormalizeSystemMessageName(name)
             end
         end
         return nil
     end
 
-    local declinePatterns = BuildSystemMessagePatterns(ERR_GUILD_DECLINE_S, "^(.*) declines guild invitation")
-    local joinPatterns = BuildSystemMessagePatterns(ERR_GUILD_JOIN_S, "^(.*) has joined the guild")
+    local declinePatterns, joinPatterns = Platform.GetGuildMessagePatterns()
 
     local scanLogic = CreateFrame("Frame")
     scanLogic:RegisterEvent("CHAT_MSG_SYSTEM")

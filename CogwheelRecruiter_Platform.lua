@@ -32,9 +32,18 @@ function Platform.GetShortName(name)
     return (name:match("^[^-]+") or name)
 end
 
+-- CHAT_MSG_SYSTEM patterns for a declined guild invite and for a new guild member.
+function Platform.GetGuildMessagePatterns()
+    return { "^(.*) declines guild invitation" }, { "^(.*) has joined the guild" }
+end
+
 -- Names in guild system messages already match the names /who returns.
 function Platform.NormalizeSystemMessageName(name)
     return name
+end
+
+-- Extra setup for the main and Quick Scanner windows (frame, closeButton); none needed here.
+function Platform.SetupWindow()
 end
 
 -- The button left of a window's close button that switches windows.

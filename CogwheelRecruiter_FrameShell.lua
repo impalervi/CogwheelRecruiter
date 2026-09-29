@@ -93,6 +93,7 @@ function FrameShell.Create(context)
 
     mainFrame.closeBtn = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
     mainFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
+    NS.Platform.SetupWindow(mainFrame, mainFrame.closeBtn)
 
     mainFrame.quickModeBtn = CreateFrame("Button", nil, mainFrame)
     NS.Platform.StyleWindowModeButton(mainFrame.quickModeBtn, mainFrame.closeBtn, "quick")
@@ -168,6 +169,7 @@ function FrameShell.Create(context)
 
     quickFrame.closeBtn = CreateFrame("Button", nil, quickFrame, "UIPanelCloseButton")
     quickFrame.closeBtn:SetPoint("TOPRIGHT", -2, -2)
+    NS.Platform.SetupWindow(quickFrame, quickFrame.closeBtn)
 
     quickFrame.fullModeBtn = CreateFrame("Button", nil, quickFrame)
     NS.Platform.StyleWindowModeButton(quickFrame.fullModeBtn, quickFrame.closeBtn, "full")

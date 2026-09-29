@@ -3,8 +3,8 @@ NS = NS or {}
 
 -- WoW: Forever (interface 16001+) runs Vanilla content on the retail client.
 -- Loaded by CogwheelRecruiter_Camelot.toc only; overrides CogwheelRecruiter_Constants.lua.
-local _, _, _, tocVersion = GetBuildInfo()
-if not tocVersion or tocVersion < 16001 or tocVersion >= 20000 then
+-- Forever reports the retail project; the check keeps this file inert if a Classic client ever loaded it.
+if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then
     return
 end
 
@@ -23,7 +23,7 @@ NS.ZONE_CATEGORIES = {
     },
     {
         name = "Mid-Game (30-50)",
-        zones = {"Tanaris", "Feralas", "The Hinterlands", "Searing Gorge", "Stranglethorn Vale", "Badlands", "Swamp of Sorrows", "Dustwallow Marsh", "Desolace", "Arathi Highlands", "Alterac Mountains", "Thousand Needles", "Riverglades", "Shen'dralas"},
+        zones = {"Tanaris", "Feralas", "The Hinterlands", "Stranglethorn Vale", "Badlands", "Swamp of Sorrows", "Dustwallow Marsh", "Desolace", "Arathi Highlands", "Alterac Mountains", "Thousand Needles", "Riverglades", "Shen'dralas"},
         min = 30, max = 50, color = {r=0.1, g=0.5, b=1.0}
     },
     {
