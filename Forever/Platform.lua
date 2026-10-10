@@ -2,8 +2,11 @@ local addonName, NS = ...
 NS = NS or {}
 
 -- WoW: Forever versions of CogwheelRecruiter_Platform.lua. Loaded by CogwheelRecruiter_Camelot.toc only.
--- Forever reports the retail project; the check keeps this file inert if a Classic client ever loaded it.
-if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then
+-- Forever reports its own project (WOW_PROJECT_CAMELOT, since 1.60.1.70205; the retail one before that).
+-- The check keeps this file inert if a Classic client ever loaded it.
+local isForever = (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+    or WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
+if not isForever then
     return
 end
 
@@ -106,9 +109,61 @@ function Platform.SetupWindow(frame, closeButton)
 end
 
 -- The modern minimap is larger: the button sits just outside its edge and drags with the left button,
--- like other addons' minimap buttons (LibDBIcon).
-function Platform.GetMinimapButtonRadius()
-    return (Minimap:GetWidth() / 2) + 5
+-- like other addons' minimap buttons. Placement follows LibDBIcon-1.0 (BugSack, RestedXP, Details):
+-- the distance comes from the minimap's current size, and minimap addons that make it square or
+-- cornered report the shape through GetMinimapShape(), so the button follows that edge.
+local MINIMAP_BUTTON_GAP = 5
+
+-- Per shape, whether each quarter is round: 1 bottom right, 2 bottom left, 3 top right, 4 top left.
+local MINIMAP_ROUND_QUARTERS = {
+    ["ROUND"] = {true, true, true, true},
+    ["SQUARE"] = {false, false, false, false},
+    ["CORNER-TOPLEFT"] = {false, false, false, true},
+    ["CORNER-TOPRIGHT"] = {false, false, true, false},
+    ["CORNER-BOTTOMLEFT"] = {false, true, false, false},
+    ["CORNER-BOTTOMRIGHT"] = {true, false, false, false},
+    ["SIDE-LEFT"] = {false, true, false, true},
+    ["SIDE-RIGHT"] = {true, false, true, false},
+    ["SIDE-TOP"] = {false, false, true, true},
+    ["SIDE-BOTTOM"] = {true, true, false, false},
+    ["TRICORNER-TOPLEFT"] = {false, true, true, true},
+    ["TRICORNER-TOPRIGHT"] = {true, false, true, true},
+    ["TRICORNER-BOTTOMLEFT"] = {true, true, false, true},
+    ["TRICORNER-BOTTOMRIGHT"] = {true, true, true, false},
+}
+
+function Platform.GetMinimapButtonOffset(angle)
+    local x, y = math.cos(angle), math.sin(angle)
+    local quarter = 1
+    if x < 0 then quarter = quarter + 1 end
+    if y > 0 then quarter = quarter + 2 end
+
+    local shape = GetMinimapShape and GetMinimapShape() or "ROUND"
+    local roundQuarters = MINIMAP_ROUND_QUARTERS[shape] or MINIMAP_ROUND_QUARTERS["ROUND"]
+    local w = (Minimap:GetWidth() / 2) + MINIMAP_BUTTON_GAP
+    local h = (Minimap:GetHeight() / 2) + MINIMAP_BUTTON_GAP
+    if roundQuarters[quarter] then
+        return x * w, y * h
+    end
+
+    -- Square corner: slide along the edges instead of the circle.
+    local diagonalW = math.sqrt(2 * w * w) - 10
+    local diagonalH = math.sqrt(2 * h * h) - 10
+    return math.max(-w, math.min(x * diagonalW, w)), math.max(-h, math.min(y * diagonalH, h))
+end
+
+-- The minimap's final size and shape are known only once the UI has finished loading, as
+-- LibDBIcon waits for PLAYER_LOGIN; minimap addons may also resize it later.
+function Platform.WatchMinimapLayout(updatePosition)
+    local watcher = CreateFrame("Frame")
+    watcher:RegisterEvent("PLAYER_LOGIN")
+    watcher:SetScript("OnEvent", function(self)
+        self:UnregisterEvent("PLAYER_LOGIN")
+        updatePosition()
+    end)
+    Minimap:HookScript("OnSizeChanged", function()
+        updatePosition()
+    end)
 end
 
 function Platform.GetMinimapButtonDrag()

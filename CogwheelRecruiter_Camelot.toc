@@ -3,7 +3,7 @@
 ## Notes: Recruit new guild members with smart filters and personalized outreach.
 ## IconTexture: Interface\AddOns\CogwheelRecruiter\Media\CogwheelRecruiterIcon_64x64
 ## Author: ImpalerV (Marvi Sparkweaver)
-## Version: 1.4
+## Version: 1.4.1
 ## SavedVariables: CogwheelRecruiterHistoryDB, CogwheelRecruiterSettingsDB, CogwheelRecruiterWhispersDB, CogwheelRecruiterAnalyticsDB
 
 CogwheelRecruiter_Constants.lua

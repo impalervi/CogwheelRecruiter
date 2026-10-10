@@ -3,8 +3,11 @@ NS = NS or {}
 
 -- WoW: Forever (interface 16001+) runs Vanilla content on the retail client.
 -- Loaded by CogwheelRecruiter_Camelot.toc only; overrides CogwheelRecruiter_Constants.lua.
--- Forever reports the retail project; the check keeps this file inert if a Classic client ever loaded it.
-if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then
+-- Forever reports its own project (WOW_PROJECT_CAMELOT, since 1.60.1.70205; the retail one before that).
+-- The check keeps this file inert if a Classic client ever loaded it.
+local isForever = (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+    or WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
+if not isForever then
     return
 end
 

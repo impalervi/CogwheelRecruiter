@@ -50,9 +50,10 @@ end
 function Platform.SetupWindow()
 end
 
--- Minimap button: its distance from the minimap's center, and how it is dragged around it.
-function Platform.GetMinimapButtonRadius()
-    return 80
+-- Minimap button: its offset from the minimap's center at an angle (radians), and how it is dragged around it.
+function Platform.GetMinimapButtonOffset(angle)
+    local radius = 80
+    return math.cos(angle) * radius, math.sin(angle) * radius
 end
 
 function Platform.GetMinimapButtonDrag()
@@ -65,6 +66,10 @@ end
 
 -- Extra setup for the minimap button (button); none needed here.
 function Platform.SetupMinimapButton()
+end
+
+-- Places the minimap button again when the minimap's layout changes (updatePosition); not needed here.
+function Platform.WatchMinimapLayout()
 end
 
 -- The button left of a window's close button that switches windows.

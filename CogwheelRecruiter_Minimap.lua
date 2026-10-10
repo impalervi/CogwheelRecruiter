@@ -43,11 +43,11 @@ function MinimapUI.Create(config)
         if not settings or not settings.minimapPos then return end
 
         local angle = math.rad(settings.minimapPos)
-        local radius = NS.Platform.GetMinimapButtonRadius()
-        local x = math.cos(angle) * radius
-        local y = math.sin(angle) * radius
+        local x, y = NS.Platform.GetMinimapButtonOffset(angle)
         minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
     end
+
+    NS.Platform.WatchMinimapLayout(UpdatePosition)
 
     minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     -- No click follows a drag (the game cancels it), so every OnClick is a real click.
